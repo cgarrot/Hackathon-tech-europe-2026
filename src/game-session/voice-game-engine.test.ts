@@ -81,6 +81,36 @@ describe("voice-game-engine", () => {
     expect(session.lastPlayerIntent).toBeUndefined();
   });
 
+  it("eliminates a named target from a werewolf night action", () => {
+    const session = createVoiceGameSession({ sessionId: "session-night-elimination", result: fixture() });
+
+    advanceVoiceGameSession(session);
+    advanceVoiceGameSession(session, { participantId: "human_1", transcript: "Je tue Mireille cette nuit." });
+    const publicSession = toPublicVoiceGameSession(session);
+    const mireille = publicSession.participants.find((participant) => participant.displayName === "Mireille");
+
+    expect(publicSession.status).toBe("running");
+    expect(publicSession.activePhase.id).toBe("day");
+    expect(mireille?.alive).toBe(false);
+    expect(publicSession.events.some((event) => event.text.includes("Mireille is eliminated by the night action"))).toBe(true);
+    expect(publicSession.pendingInput?.prompt).not.toContain("Mireille");
+  });
+
+  it("ends with village victory when the vote eliminates the wolf", () => {
+    const session = createVoiceGameSession({ sessionId: "session-vote-victory", result: fixture() });
+
+    advanceVoiceGameSession(session);
+    advanceVoiceGameSession(session, { participantId: "human_2", transcript: "J'inspecte Mireille parce qu'elle hésite." });
+    advanceVoiceGameSession(session, { participantId: "human_2", transcript: "Je vote contre Player 1." });
+    const publicSession = toPublicVoiceGameSession(session);
+    const playerOne = publicSession.participants.find((participant) => participant.id === "human_1");
+
+    expect(playerOne?.alive).toBe(false);
+    expect(publicSession.status).toBe("ended");
+    expect(publicSession.events.some((event) => event.text.includes("Player 1 is eliminated by the table vote"))).toBe(true);
+    expect(publicSession.events.some((event) => event.kind === "game_ended" && event.text.includes("Village victory"))).toBe(true);
+  });
+
   it("generates a player response when an input window times out without speech", () => {
     const session = createVoiceGameSession({ sessionId: "session-timeout", result: fixture() });
 

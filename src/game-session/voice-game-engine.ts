@@ -61,6 +61,7 @@ export interface VoiceGameInputWindow {
 }
 
 type VoiceGameIntentConfidence = "high" | "medium" | "low";
+type VoiceGameEliminationKind = "night_kill" | "vote_elimination";
 
 interface VoiceGamePlayerIntent {
   phaseId: string;
@@ -340,6 +341,152 @@ function continuationTextForIntent(intent: VoiceGamePlayerIntent, phase: VoiceGa
   return `Continuity seeded by ${intent.participantName}: ${playerIntentActionText(intent)} captured in ${intent.phaseName}. ${phase.name} now builds from "${intent.transcript.slice(0, 220)}".`;
 }
 
+function normalizedWords(value: string) {
+  return normalizeIntentText(value).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function participantAliases(participant: VoiceGamePrivateParticipant) {
+  const aliases = new Set<string>();
+  aliases.add(participant.displayName);
+  aliases.add(participant.id);
+  aliases.add(participant.id.replaceAll("_", " "));
+
+  const humanMatch = /^human_(\d+)$/.exec(participant.id);
+  if (humanMatch) {
+    aliases.add(`player ${humanMatch[1]}`);
+    aliases.add(`joueur ${humanMatch[1]}`);
+  }
+
+  const aiMatch = /^ai_(\d+)$/.exec(participant.id);
+  if (aiMatch) {
+    aliases.add(`ai ${aiMatch[1]}`);
+    aliases.add(`ia ${aiMatch[1]}`);
+  }
+
+  return Array.from(aliases)
+    .map((alias) => normalizedWords(alias))
+    .filter((alias) => alias.length >= 3);
+}
+
+function transcriptMentionsAlias(transcript: string, alias: string) {
+  return ` ${transcript} `.includes(` ${alias} `);
+}
+
+function findTargetParticipant(session: VoiceGameSession, actorId: string, transcript: string) {
+  const normalizedTranscript = normalizedWords(transcript);
+  const candidates = session.participants.filter((participant) => participant.alive && participant.id !== actorId);
+  const matches = candidates.flatMap((participant) => {
+    const aliases = participantAliases(participant).filter((alias) => transcriptMentionsAlias(normalizedTranscript, alias));
+    const longestAliasLength = aliases.reduce((longest, alias) => Math.max(longest, alias.length), 0);
+    return longestAliasLength > 0 ? [{ participant, longestAliasLength }] : [];
+  });
+
+  return matches.sort((left, right) => right.longestAliasLength - left.longestAliasLength)[0]?.participant;
+}
+
+function eliminationKindForIntent(phase: VoiceGamePhase, intent: VoiceGamePlayerIntent): VoiceGameEliminationKind | undefined {
+  const action = normalizeIntentText(intent.matchedAction ?? "");
+  const transcript = normalizeIntentText(intent.transcript);
+  const phaseIntent = normalizedPhaseIntent(phase);
+
+  if (/seer|voyante|inspect|scan|reveal|vision|protect|guard|save|heal|witch|potion/.test(action)) {
+    return undefined;
+  }
+
+  const voteContext = /vote|voter|ballot|accus|suspect/.test(`${action} ${phaseIntent}`);
+  const voteTranscript = /vote|voter|contre|accuse|accuser|suspect|suspecte|eliminer|elimine|exile|bannir|banish/.test(transcript);
+  if (voteContext && voteTranscript) {
+    return "vote_elimination";
+  }
+
+  const killContext = /werewolf|wolf|loup|kill|elimin|attack|victim|victime|night|nuit/.test(`${action} ${phaseIntent}`);
+  const killTranscript = /tue|tuer|elimine|eliminer|attaque|attaquer|victime|mange|devore|devorer|kill|loup/.test(transcript);
+  if (killContext && killTranscript) {
+    return "night_kill";
+  }
+
+  return undefined;
+}
+
+function isWerewolfParticipant(participant: VoiceGamePrivateParticipant) {
+  const identity = normalizeIntentText(`${participant.roleId} ${participant.roleName} ${participant.teamOrSide}`);
+  return /werewolf|wolf|loup|garou/.test(identity);
+}
+
+function victoryTextForSession(session: VoiceGameSession) {
+  const wolfParticipants = session.participants.filter(isWerewolfParticipant);
+  if (wolfParticipants.length === 0) {
+    return undefined;
+  }
+
+  const aliveWolves = wolfParticipants.filter((participant) => participant.alive).length;
+  const aliveNonWolves = session.participants.filter((participant) => participant.alive && !isWerewolfParticipant(participant)).length;
+  if (aliveWolves === 0) {
+    return "Village victory: no wolf faction remains alive.";
+  }
+  if (aliveWolves >= aliveNonWolves) {
+    return "Werewolf victory: the wolves have reached parity with the village.";
+  }
+
+  return undefined;
+}
+
+function endSessionWithVictory(session: VoiceGameSession, phaseId: string, text: string) {
+  session.status = "ended";
+  session.pendingInput = undefined;
+  session.lastPlayerIntent = undefined;
+  pushEvent(session, {
+    kind: "game_ended",
+    phaseId,
+    speaker: narratorSpeaker(),
+    text,
+    visibility: "public",
+    visualCue: { scene: "ending", mood: "faction victory resolved", motion: "fade_out" }
+  });
+}
+
+function resolvePlayerElimination(session: VoiceGameSession, phase: VoiceGamePhase, intent: VoiceGamePlayerIntent) {
+  const eliminationKind = eliminationKindForIntent(phase, intent);
+  if (!eliminationKind) {
+    return false;
+  }
+
+  const target = findTargetParticipant(session, intent.participantId, intent.transcript);
+  if (!target) {
+    pushEvent(session, {
+      kind: "state_updated",
+      phaseId: phase.id,
+      speaker: { id: "system", kind: "system", displayName: "Rules engine" },
+      text: `No elimination resolved for ${intent.participantName}: name a living target such as ${session.participants
+        .filter((participant) => participant.alive && participant.id !== intent.participantId)
+        .map((participant) => participant.displayName)
+        .join(", ") || "another player"}.`,
+      visibility: "public"
+    });
+    return false;
+  }
+
+  target.alive = false;
+  pushEvent(session, {
+    kind: "state_updated",
+    phaseId: phase.id,
+    speaker: { id: "system", kind: "system", displayName: "Rules engine" },
+    text: eliminationKind === "night_kill"
+      ? `${target.displayName} is eliminated by the night action and will no longer act.`
+      : `${target.displayName} is eliminated by the table vote and will no longer act.`,
+    visibility: "public",
+    visualCue: { scene: phase.id, mood: "elimination resolved", motion: "token_removed" }
+  });
+
+  const victoryText = victoryTextForSession(session);
+  if (victoryText) {
+    endSessionWithVictory(session, phase.id, victoryText);
+    return true;
+  }
+
+  return false;
+}
+
 function phaseKeywords(phase: VoiceGamePhase) {
   return `${phase.id} ${phase.name} ${phase.purpose} ${phase.allowedActions.join(" ")}`
     .toLowerCase()
@@ -405,6 +552,18 @@ function personaLine(participant: VoiceGamePrivateParticipant, phase: VoiceGameP
   }
 
   return `${styleHint}${participant.displayName} threads ${phase.name} with intent: ${phase.purpose}`;
+}
+
+function inputPromptForPhase(session: VoiceGameSession, phase: VoiceGamePhase) {
+  const livingPlayers = session.participants
+    .filter((participant) => participant.alive)
+    .map((participant) => participant.displayName)
+    .join(", ");
+  const targetHint = /vote|voter|kill|elimin|loup|wolf|werewolf|accus/.test(normalizedPhaseIntent(phase))
+    ? ` Name a living target to resolve votes or eliminations. Living players: ${livingPlayers}.`
+    : "";
+
+  return `Speak now for ${phase.name}. Expected actions: ${phase.allowedActions.join(", ") || "open reaction"}.${targetHint}`;
 }
 
 function normalizedPhaseIntent(phase: VoiceGamePhase) {
@@ -520,7 +679,7 @@ function addPhaseEvents(session: VoiceGameSession) {
       id: `${session.sessionId}:${phase.id}:input:${session.round}`,
       phaseId: phase.id,
       durationSec: Math.min(MAX_VOICE_INPUT_DURATION_SEC, phase.durationSec),
-      prompt: `Speak now for ${phase.name}. Expected actions: ${phase.allowedActions.join(", ") || "open reaction"}.`,
+      prompt: inputPromptForPhase(session, phase),
       expectedActions: phase.allowedActions
     };
     session.pendingInput = inputWindow;
@@ -588,6 +747,7 @@ export function advanceVoiceGameSession(session: VoiceGameSession, input: Advanc
 
   const previousPhase = currentPhase(session);
   const transcript = input.transcript?.trim();
+  let sessionEndedByResolution = false;
   if (transcript && session.pendingInput) {
     const participant = findParticipant(session, input.participantId);
     const participantId = participant?.id ?? "human_1";
@@ -618,6 +778,7 @@ export function advanceVoiceGameSession(session: VoiceGameSession, input: Advanc
       text: `Voice cue: ${playerIntent.summary}. This intent primes the incoming phase.`,
       visibility: "public"
     });
+    sessionEndedByResolution = resolvePlayerElimination(session, previousPhase, playerIntent);
   } else if (transcript) {
     pushEvent(session, {
       kind: "state_updated",
@@ -652,6 +813,10 @@ export function advanceVoiceGameSession(session: VoiceGameSession, input: Advanc
   }
 
   session.pendingInput = undefined;
+  if (sessionEndedByResolution) {
+    return session;
+  }
+
   const nextIndex = nextPhaseIndex(session, previousPhase);
   if (nextIndex < 0) {
     const finalIntent = session.lastPlayerIntent;
