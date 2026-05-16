@@ -87,7 +87,9 @@ export function resolvePioneerArtifactEnhancementConfig(): LlmProviderConfig | u
     return undefined;
   }
 
-  const apiKey = process.env.PIONEER_ARTIFACT_API_KEY?.trim() || process.env.PIONEER_API_KEY?.trim();
+  const apiKey = process.env.PIONEER_ARTIFACT_API_KEY?.trim()
+    || process.env.PIONEER_ARTIFACT_FINE_TUNE_API_KEY?.trim()
+    || process.env.PIONEER_API_KEY?.trim();
   if (!apiKey) {
     return undefined;
   }

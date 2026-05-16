@@ -68,6 +68,17 @@ describe("pioneer-artifact-enhancer", () => {
     });
   });
 
+  it("can reuse the fine-tune API key for Kimi fallback config", () => {
+    process.env.PIONEER_ARTIFACT_ENHANCEMENT = "true";
+    process.env.PIONEER_ARTIFACT_FINE_TUNE_API_KEY = "fine-tune-key";
+
+    expect(resolvePioneerArtifactEnhancementConfig()).toMatchObject({
+      provider: "pioneer",
+      apiKey: "fine-tune-key",
+      model: "moonshotai/Kimi-K2.6"
+    });
+  });
+
   it("resolves the fine-tuned Pioneer artifact model for native inference", () => {
     process.env.PIONEER_ARTIFACT_ENHANCEMENT = "true";
     process.env.PIONEER_ARTIFACT_FINE_TUNE_API_KEY = "fine-tune-key";
