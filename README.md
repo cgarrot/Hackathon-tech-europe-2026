@@ -1,191 +1,82 @@
-# GameForge Integrations
+# Hackathon-tech-europe-2026
 
-Prototypes d'integration independants pour GameForge:
+GameForge is a generative game compiler: it turns a natural-language game idea into a structured game package containing rules, roles, cards, personas, asset prompts, and code stubs.
 
-- `gameforge_voice` / `gameforge_gradium`: STT/TTS avec Gradium.
-- `gameforge_visuals` / `gameforge_fal`: generation d'images avec fal.
-- `web/gameforge-input`: interface web d'input en langage naturel.
+## MVP scope
 
-## Web Input
+- Universal Game Compiler
+- Game Family Router
+- Game Packs: Werewolf, Mystery, Quiz, Debate, Survival, Generic
+- `/api/forge` route with OpenAI and Ollama Cloud provider support
+- `/api/generate-project` route that turns a validated `ForgeResult` into a safe client-only project manifest
+- `/api/voice/stt` and `/api/voice/tts` routes with Gradium server-side speech-to-text/text-to-speech
+- Web UI to compile and inspect game packages
 
-Interface sobre pour recueillir la volonte de jeu, simuler la compilation OpenAI, puis afficher un pseudo jeu genere.
-
-```bash
-python3 -m http.server 4173 --directory web/gameforge-input
-```
-
-Puis ouvrir:
-
-```text
-http://127.0.0.1:4173/index.html
-```
-
-Voir aussi:
-
-- [docs/web-input.md](docs/web-input.md)
-
-## Voice: Gradium
-
-Prototype minimal pour tester la couche voix avec Gradium:
-
-- TTS: generer un fichier audio WAV a partir d'une replique de jeu.
-- STT: transcrire un fichier audio existant.
-- Demo: produire quelques voix de personnages pour valider le pipeline.
-
-## Installation
-
-Le SDK Gradium demande Python 3.10 ou plus. Sur cette machine, `python3` peut etre trop ancien, donc `uv` est le chemin le plus simple:
+## Run locally
 
 ```bash
-uv python install 3.12
-uv venv --python 3.12
-source .venv/bin/activate
-uv pip install .
+npm install
+npm run dev
 ```
 
-Pour contribuer et lancer les tests:
+Copy `.env.example` to `.env.local` and choose a real LLM provider:
 
 ```bash
-uv pip install ".[dev]"
-pytest
+# Cheaper test path once Ollama Cloud is configured
+LLM_PROVIDER=ollama
+OLLAMA_API_KEY=...
+OLLAMA_BASE_URL=https://ollama.com/v1/
+OLLAMA_MODEL=gpt-oss:20b
 ```
 
-Configure la cle API:
+or:
 
 ```bash
-cp .env.example .env
-export GRADIUM_API_KEY="gd_your_api_key_here"
+LLM_PROVIDER=openai
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-4.1-mini
 ```
 
-Tu peux aussi regler la langue et les voix par defaut:
+The app runtime intentionally has no mock provider and no silent mock fallback. If a real provider is missing or fails, `/api/forge` returns a clear error instead of generating fake output.
 
-```bash
-GRADIUM_LANGUAGE=fr
-GRADIUM_FR_VOICE_ID=b35yykvVppLXyw_l
-GRADIUM_EN_VOICE_ID=YTpq7expH9539ERJ
-```
+`/api/forge` also includes basic server-side cost guards for real LLM calls: per-client rate limiting and a global concurrent compilation cap. Tune them with `GAMEFORGE_RATE_LIMIT_WINDOW_MS`, `GAMEFORGE_RATE_LIMIT_MAX_REQUESTS`, and `GAMEFORGE_MAX_CONCURRENT_REQUESTS` before a public demo.
 
-Par defaut, le PoC utilise `fr` avec une voix francaise Gradium. L'ancien ID `YTpq7expH9539ERJ` correspond a Emma, une voix anglaise US, donc elle produit naturellement un accent anglais sur du texte francais.
+Voice routes use the same server-only pattern. Set `GRADIUM_API_KEY` plus a voice id such as `GRADIUM_FR_VOICE_ID` or `GRADIUM_DEFAULT_VOICE_ID`; `.env.example` uses Gradium's documented quickstart voice id (`YTpq7expH9539ERJ`) as a non-secret default. The browser never sees the key. Gradium REST uses `POST https://api.gradium.ai/api/post/speech/asr` for raw audio transcription and `POST https://api.gradium.ai/api/post/speech/tts` for streamed synthesis with `only_audio: true`. Tune voice guards with `GAMEFORGE_VOICE_RATE_LIMIT_WINDOW_MS`, `GAMEFORGE_VOICE_RATE_LIMIT_MAX_REQUESTS`, and `GAMEFORGE_MAX_CONCURRENT_VOICE_REQUESTS`.
 
-## Tests rapides
+Ollama Cloud is wired through the OpenAI-compatible `/v1` endpoint so the same server route can switch providers. Because Ollama Cloud structured outputs are not guaranteed like OpenAI strict schemas, the compiler asks Ollama for JSON and validates each stage locally with Zod plus one repair retry.
 
-Generer une replique:
+For Ollama, GameForge keeps a guided prompt sequence but uses a lighter version than OpenAI: Prompt 1 creates `IntakeBrief`, Prompt 2 creates a pack-guided `GameSpec`, then server-side guide code derives cards, personas, assets, rules, and code stubs from that validated spec. DeepSeek V4 Flash can be slow on cold starts, so the default `LLM_TIMEOUT_MS` is 180000 and the UI displays elapsed time while the pipeline runs.
 
-```bash
-gameforge-voice tts \
-  --text "La nuit tombe sur le village. Les loups ouvrent les yeux." \
-  --language fr \
-  --output artifacts/night.wav
-```
+## Generated project lane
 
-Transcrire un fichier:
+After `/api/forge` returns a validated `ForgeResult`, the UI can call `/api/generate-project` to create a deterministic client-only project package. The server does **not** execute generated code, install dependencies, or write files to disk; it returns a file manifest that can be downloaded and reviewed.
 
-```bash
-gameforge-voice stt --input artifacts/night.wav --format wav --language fr
-```
+The generated package includes:
 
-Generer une mini scene GameForge:
+- `README.md`
+- `package.json`
+- `tsconfig.json`
+- `app/layout.tsx`
+- `app/page.tsx`
+- `app/globals.css`
+- `gameforge-result.json`
+- `data/game-spec.json`
+- `data/cards.json`
+- `data/personas.json`
+- `data/asset-prompts.json`
+- `data/visual-assets.json`
+- `data/voice-manifest.json`
+- `src/game/types.ts`
+- `src/game/config.ts`
+- `src/game/rules.ts`
+- `src/ui/CardGallery.tsx`
+- `src/ui/GamePreview.tsx`
+- `src/ui/game-preview.css`
+- `generated-project-manifest.json`
+- `codex-generation-guide.md`
 
-```bash
-gameforge-voice demo --language fr --output-dir artifacts/demo-fr
-gameforge-voice demo --language en --output-dir artifacts/demo-en
-```
+Codex CLI should be used only later as a sandboxed/dev-time enhancer that consumes this validated package, never as synchronous request-time code execution.
 
-Tester la sortie vocale en streaming vers les haut-parleurs:
+## GitHub remote
 
-```bash
-gameforge-voice play \
-  --language fr \
-  --text "Bienvenue dans GameForge. La session vocale commence maintenant."
-```
-
-Tester une session joueur contre IA scenarisees:
-
-```bash
-gameforge-voice live-chat --turns 3 --language fr
-gameforge-voice live-chat --turns 3 --language en
-```
-
-Le mode `live-chat` fonctionne en push-to-talk:
-
-1. Appuie sur Entree pour commencer un tour.
-2. Parle au micro.
-3. Appuie de nouveau sur Entree pour envoyer.
-4. Gradium transcrit, puis les IA repondent en TTS streaming.
-
-Au premier lancement, macOS peut demander l'autorisation d'utiliser le micro pour le terminal.
-
-## Notes d'integration
-
-- Les autres briques GameForge doivent importer `gameforge_voice.VoiceRuntime`.
-- `gameforge_gradium` reste la couche CLI/Gradium de bas niveau.
-- Le live reste en push-to-talk pour eviter les boucles micro/haut-parleur.
-- `provider="mock"` permet de tester OpenAI, Pioneer et fal sans micro ni cle Gradium.
-- `provider="gradium"` utilise `client.stt_realtime(...)` pour le micro et `client.tts_stream(...)` pour la sortie haut-parleur.
-
-Exemple d'integration:
-
-```python
-from gameforge_voice import VoiceRuntime
-
-voice = VoiceRuntime.from_game_schema(game_schema, provider="gradium")
-
-await voice.start()
-try:
-    player = await voice.listen_player_turn("human_1")
-    await voice.speak_ai("seer", "J'ai vu une ombre pres du puits.")
-finally:
-    await voice.stop()
-```
-
-Voir aussi:
-
-- [docs/voice-runtime.md](docs/voice-runtime.md)
-- [examples/voice_runtime_mock.py](examples/voice_runtime_mock.py)
-
-Docs Gradium utiles:
-
-- [Documentation index](https://docs.gradium.ai/llms.txt)
-- [Text-to-Speech](https://docs.gradium.ai/guides/text-to-speech)
-- [Speech-to-Text](https://docs.gradium.ai/guides/speech-to-text)
-
-## Visuals: fal
-
-Prototype minimal pour tester la generation d'images avec fal.
-
-Configure la cle:
-
-```bash
-export FAL_KEY="your-fal-key-here"
-```
-
-```bash
-gameforge-visuals image \
-  --prompt "A medieval village square at night, torches flickering, anxious villagers gathering to vote, cinematic fantasy concept art." \
-  --image-size landscape_16_9 \
-  --num-images 1 \
-  --output-dir artifacts/fal/village
-```
-
-Generer des cartes de role Loup-garou:
-
-```bash
-gameforge-visuals werewolf-cards \
-  --roles loup-garou villageois voyante sorciere \
-  --output-dir artifacts/fal/werewolf-cards-fr \
-  --image-size portrait_4_3
-```
-
-Generer les assets depuis un schema OpenAI/GameForge:
-
-```bash
-gameforge-visuals from-schema \
-  --schema examples/game_schema_visuals.json \
-  --provider mock \
-  --output-dir artifacts/mock/visuals
-```
-
-Voir aussi:
-
-- [docs/visual-runtime.md](docs/visual-runtime.md)
-- [Flux Schnell API](https://fal.ai/docs/model-api-reference/image-generation-api/flux-schnell)
+Target repository: `git@github.com:cgarrot/Hackathon-tech-europe-2026.git`
