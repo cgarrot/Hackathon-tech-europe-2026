@@ -125,7 +125,7 @@ describe("buildGeneratedProject", () => {
     expect(voiceManifest.voices.profiles).toEqual(expect.arrayContaining([
       expect.objectContaining({
         persona_id: "ai_villager",
-        voice_id_env: "GRADIUM_FR_VOICE_ID",
+        voice_id_env: "GRADIUM_EN_VOICE_ID",
         prompt: expect.stringContaining("Mireille")
       })
     ]));
@@ -139,7 +139,7 @@ describe("buildGeneratedProject", () => {
     expect(appPage?.content).toContain("<VoiceSessionPreview />");
     expect(preview?.content).toContain("Start");
     expect(preview?.content).toContain("Storyboard");
-    expect(preview?.content).toContain("Journal vocal");
+    expect(preview?.content).toContain("Voice log");
     expect(preview?.content).not.toContain("ArrowUp");
     expect(preview?.content).not.toContain("movePlayer");
   });

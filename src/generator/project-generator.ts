@@ -320,7 +320,7 @@ function buildTsConfig() {
 
 function buildAppLayout(gameSpec: GameSpec) {
   const metadata = JSON.stringify({ title: gameSpec.title, description: gameSpec.pitch }, null, 2);
-  return `import type { ReactNode } from "react";\nimport "./globals.css";\n\nexport const metadata = ${metadata};\n\nexport default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {\n  return (\n    <html lang="fr">\n      <body>{children}</body>\n    </html>\n  );\n}\n`;
+  return `import type { ReactNode } from "react";\nimport "./globals.css";\n\nexport const metadata = ${metadata};\n\nexport default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {\n  return (\n    <html lang="en">\n      <body>{children}</body>\n    </html>\n  );\n}\n`;
 }
 
 function buildAppPage() {
@@ -464,13 +464,13 @@ export function VoiceSessionPreview() {
   const personaList = generatedGame.personas.slice(0, 3);
   const log = useMemo(() => {
     if (!started) {
-      return ["Appuie sur Start pour lancer la démo vocale simple."];
+      return ["Tap Start for the streamlined voice teaser."];
     }
 
     return [
-      "Session démarrée: " + generatedGame.gameSpec.title,
-      activePhase ? "Phase active: " + activePhase.name : "Aucune phase générée.",
-      "Réplique IA: " + firstPersonaLine()
+      "Session underway: " + generatedGame.gameSpec.title,
+      activePhase ? "Active phase: " + activePhase.name : "No scripted phase yet.",
+      "AI cue: " + firstPersonaLine()
     ];
   }, [activePhase, started]);
 
@@ -480,19 +480,19 @@ export function VoiceSessionPreview() {
         <p className="eyebrow">{generatedGame.gameSpec.family} / {generatedGame.gameSpec.pack}</p>
         <h1 id="game-title">{generatedGame.gameSpec.title}</h1>
         <p>{generatedGame.gameSpec.pitch}</p>
-        <button type="button" onClick={() => setStarted(true)}>{started ? "Session en cours" : "Start"}</button>
+        <button type="button" onClick={() => setStarted(true)}>{started ? "Session running…" : "Start"}</button>
       </section>
 
-      <section className={started ? "voice-scene voice-scene-active" : "voice-scene"} aria-label="Scène vocale">
+      <section className={started ? "voice-scene voice-scene-active" : "voice-scene"} aria-label="Voice scene">
         <div className="voice-orb" aria-hidden="true" />
         <div>
-          <p className="eyebrow">Scène active</p>
-          <h2>{activePhase?.name ?? "Phase générée"}</h2>
+          <p className="eyebrow">Active scene</p>
+          <h2>{activePhase?.name ?? "Generated beat"}</h2>
           <p>{activePhase?.purpose ?? firstScenePrompt()}</p>
         </div>
       </section>
 
-      <section className="voice-grid" aria-label="Storyboard et journal">
+      <section className="voice-grid" aria-label="Storyboard and log">
         <article className="voice-panel">
           <h2>Storyboard</h2>
           <ol>
@@ -506,14 +506,14 @@ export function VoiceSessionPreview() {
         </article>
 
         <article className="voice-panel">
-          <h2>Journal vocal</h2>
+          <h2>Voice log</h2>
           <ol>
             {log.map((entry) => <li key={entry}>{entry}</li>)}
           </ol>
         </article>
       </section>
 
-      <section className="voice-panel" aria-label="Personas IA">
+      <section className="voice-panel" aria-label="AI personas">
         <h2>Personas</h2>
         <div className="persona-list">
           {personaList.map((persona) => (
