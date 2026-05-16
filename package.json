@@ -1,0 +1,36 @@
+{
+  "name": "hackathon-tech-europe-2026",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint app src --max-warnings=0",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "dependencies": {
+    "next": "^16.2.6",
+    "openai": "^6.38.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "eslint": "^10.4.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.59.3",
+    "vitest": "^4.1.6"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
+  }
+}
