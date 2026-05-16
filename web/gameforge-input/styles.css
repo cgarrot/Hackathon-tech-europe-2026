@@ -54,6 +54,73 @@ select {
   overflow: hidden;
 }
 
+.input-overlay {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 42px;
+  background:
+    linear-gradient(180deg, rgba(245, 247, 245, 0.92), rgba(238, 243, 239, 0.98)),
+    radial-gradient(circle at 55% 30%, rgba(200, 131, 45, 0.2), transparent 28%),
+    radial-gradient(circle at 24% 70%, rgba(36, 113, 90, 0.18), transparent 32%);
+}
+
+.input-screen {
+  width: min(760px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 26px;
+  text-align: center;
+}
+
+.input-heading {
+  display: grid;
+  gap: 12px;
+}
+
+.input-heading h1 {
+  margin: 0;
+  font-size: clamp(4rem, 11vw, 9rem);
+  line-height: 0.9;
+}
+
+.input-heading p {
+  max-width: 620px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  line-height: 1.55;
+}
+
+.hero-mic-button {
+  min-width: 280px;
+  min-height: 96px;
+  font-size: 1.14rem;
+}
+
+.transcript-input {
+  width: min(680px, 100%);
+  min-height: 132px;
+  resize: vertical;
+  padding: 18px 20px;
+  border: 1px solid rgba(36, 113, 90, 0.22);
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 42px rgba(27, 43, 36, 0.08);
+  line-height: 1.55;
+}
+
+.transcript-input:focus {
+  outline: 3px solid rgba(36, 113, 90, 0.18);
+  border-color: var(--accent);
+}
+
+.hero-generate-button {
+  min-height: 52px;
+  padding: 0 22px;
+}
+
 .topbar {
   min-height: 64px;
   padding: 18px 22px;
@@ -123,14 +190,15 @@ select {
 .main-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(330px, 0.9fr);
-  min-height: 680px;
+  min-height: 620px;
 }
 
 .composer {
-  padding: 44px;
+  padding: 52px 48px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  justify-content: center;
+  gap: 28px;
 }
 
 .eyebrow {
@@ -163,7 +231,7 @@ h2 {
 .intro {
   max-width: 620px;
   color: var(--muted);
-  font-size: 1.02rem;
+  font-size: 1rem;
   line-height: 1.6;
 }
 
@@ -242,11 +310,21 @@ h2 {
   font-weight: 760;
 }
 
-#mic-help {
+.fixed-example {
   max-width: 440px;
   margin: 0;
   color: var(--muted);
+  font-size: 0.92rem;
   line-height: 1.55;
+}
+
+.fixed-example span:first-child {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 780;
+  text-transform: uppercase;
 }
 
 .transcript-panel {
@@ -595,6 +673,176 @@ h2 {
   border-color: rgba(36, 113, 90, 0.28);
 }
 
+.prepare-overlay {
+  min-height: 100vh;
+  display: grid;
+  place-items: stretch;
+  background:
+    linear-gradient(180deg, rgba(245, 247, 245, 0.92), rgba(238, 243, 239, 0.98)),
+    radial-gradient(circle at 55% 30%, rgba(200, 131, 45, 0.2), transparent 28%),
+    radial-gradient(circle at 24% 70%, rgba(36, 113, 90, 0.18), transparent 32%);
+  overflow: hidden;
+}
+
+.prepare-screen {
+  min-height: 100vh;
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 42px;
+}
+
+.prepare-brand {
+  position: absolute;
+  left: 34px;
+  top: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 720;
+  z-index: 3;
+}
+
+.forge-visual {
+  position: relative;
+  width: min(440px, 100%);
+  aspect-ratio: 1 / 0.78;
+  margin: 0 auto;
+}
+
+.prepare-visual {
+  position: absolute;
+  width: min(760px, 78vw);
+  opacity: 0.34;
+  filter: blur(0.2px);
+}
+
+.forge-core {
+  position: absolute;
+  inset: 21% 28%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.75), transparent 28%),
+    linear-gradient(145deg, var(--accent), var(--amber));
+  box-shadow: 0 22px 48px rgba(36, 113, 90, 0.25);
+  animation: forgeGlow 1.8s ease-in-out infinite alternate;
+}
+
+.forge-orbit {
+  position: absolute;
+  inset: 11% 18%;
+  border: 1px solid rgba(36, 113, 90, 0.24);
+  border-radius: 50%;
+}
+
+.orbit-one {
+  transform: rotate(-10deg);
+}
+
+.orbit-two {
+  inset: 21% 8%;
+  border-color: rgba(138, 58, 71, 0.22);
+  transform: rotate(18deg);
+}
+
+.forge-card {
+  position: absolute;
+  width: 24%;
+  height: 38%;
+  border: 4px solid #f8efe1;
+  border-radius: 8px;
+  background: linear-gradient(155deg, #263a33, #376c8d);
+  box-shadow: 0 16px 28px rgba(20, 28, 24, 0.18);
+}
+
+.forge-card.card-one {
+  left: 5%;
+  top: 22%;
+  transform: rotate(-13deg);
+}
+
+.forge-card.card-two {
+  right: 7%;
+  top: 15%;
+  background: linear-gradient(155deg, #46334b, #8a3a47);
+  transform: rotate(12deg);
+}
+
+.forge-card.card-three {
+  left: 38%;
+  bottom: 4%;
+  background: linear-gradient(155deg, #315a4a, #c8832d);
+  transform: rotate(3deg);
+}
+
+.prepare-message {
+  position: relative;
+  z-index: 2;
+  width: min(920px, 100%);
+  display: grid;
+  gap: 18px;
+  text-align: center;
+}
+
+.prepare-message .eyebrow {
+  margin-bottom: 0;
+}
+
+.prepare-message h1 {
+  margin: 0 auto;
+  max-width: 900px;
+  font-size: clamp(2.5rem, 7vw, 6.8rem);
+  line-height: 0.94;
+}
+
+.prepare-message p {
+  max-width: 720px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.prepare-progress {
+  position: absolute;
+  left: 50%;
+  bottom: 42px;
+  z-index: 3;
+  width: min(620px, calc(100% - 48px));
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+  color: var(--muted);
+  font-weight: 760;
+}
+
+.message-enter {
+  animation: messageSwap 360ms ease both;
+}
+
+@keyframes forgeGlow {
+  from {
+    transform: scale(0.98);
+  }
+  to {
+    transform: scale(1.03);
+  }
+}
+
+@keyframes messageSwap {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding: 14px;
@@ -639,5 +887,26 @@ h2 {
 
   .status-chip {
     display: none;
+  }
+
+  .prepare-screen {
+    padding: 24px;
+  }
+
+  .prepare-brand {
+    left: 20px;
+    top: 18px;
+  }
+
+  .prepare-message h1 {
+    font-size: clamp(2.4rem, 15vw, 4.5rem);
+  }
+
+  .prepare-message p {
+    font-size: 0.94rem;
+  }
+
+  .prepare-progress {
+    bottom: 24px;
   }
 }

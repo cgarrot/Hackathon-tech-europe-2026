@@ -1,99 +1,41 @@
-import { compileGameRequest, voiceExamples } from "./compiler-adapter.js";
-
 const form = document.querySelector("#game-form");
 const micButton = document.querySelector("#mic-button");
 const micLabel = document.querySelector("#mic-label");
 const generateButton = document.querySelector("#generate-button");
-const exampleButton = document.querySelector("#example-button");
-const transcriptPanel = document.querySelector("#transcript-panel");
+const generateLabel = document.querySelector("#generate-label");
+const tagline = document.querySelector("#tagline");
 const transcriptText = document.querySelector("#transcript-text");
-const progress = document.querySelector("#progress");
-const progressLabel = document.querySelector("#progress-label");
-const progressPercent = document.querySelector("#progress-percent");
-const progressBar = document.querySelector("#progress-bar");
-const steps = Array.from(document.querySelectorAll("#steps li"));
-const languageButtons = Array.from(document.querySelectorAll("[data-ui-lang]"));
 
 const copy = {
   fr: {
-    status: "Prototype input",
-    eyebrow: "Game Compiler",
-    title: "Dis le jeu à générer",
-    intro: "Appuie, parle, puis laisse la compilation simulée transformer ta demande en jeu.",
-    talk: "Parler",
-    listen: "Écoute",
-    talkAgain: "Reparler",
-    listeningText: "Écoute…",
-    transcribingText: "Transcription en cours…",
-    micHelp: "Prototype vocal simulé. La future version branchera Gradium STT ici.",
-    transcriptTitle: "Transcription détectée",
-    generate: "Générer",
-    example: "Changer d’exemple",
-    progressIdle: "Compilation du jeu…",
-    previewTitle: "Jeu prêt à lancer",
-    previewText:
-      "La page suivante affichera le jeu généré : personnages, déroulé de partie et emplacements prévus pour les voix, visuels et IA.",
-    previewAria: "Aperçu du jeu généré",
-    stepSchema: "Structuration des règles",
-    stepPersonas: "Préparation des personas IA",
-    stepVisuals: "Plan d’assets visuels",
-    stepRuntime: "Assemblage du runtime",
-    buildSteps: [
-      ["schema", "OpenAI structure les règles", 22],
-      ["personas", "Pioneer prépare les personas", 48],
-      ["visuals", "fal planifie les visuels", 73],
-      ["runtime", "Assemblage du runtime", 100]
-    ]
+    documentTitle: "GameForge · Nouveau jeu",
+    tagline: "Décris le jeu que tu veux jouer. On le forge pendant que tu respires.",
+    speak: "Speak",
+    listening: "Écoute…",
+    transcribing: "Transcription en cours…",
+    speakAgain: "Speak again",
+    placeholder: "Ta demande apparaîtra ici. Tu peux la modifier avant de générer.",
+    generate: "Générer le jeu",
+    example: "Je veux jouer à un jeu de loup-garou dans un village médiéval, 8 joueurs dont 2 IA."
   },
   en: {
-    status: "Input prototype",
-    eyebrow: "Game Compiler",
-    title: "Say the game to generate",
-    intro: "Press, speak, then let the simulated compiler turn your request into a game.",
-    talk: "Speak",
-    listen: "Listening",
-    talkAgain: "Speak again",
-    listeningText: "Listening…",
-    transcribingText: "Transcribing…",
-    micHelp: "Simulated voice input. The future version will connect Gradium STT here.",
-    transcriptTitle: "Detected transcript",
-    generate: "Generate",
-    example: "Change example",
-    progressIdle: "Compiling game…",
-    previewTitle: "Ready-to-play game",
-    previewText:
-      "The next page will show the generated game: characters, gameplay flow, and slots for voices, visuals, and AI.",
-    previewAria: "Generated game preview",
-    stepSchema: "Structuring rules",
-    stepPersonas: "Preparing AI personas",
-    stepVisuals: "Planning visual assets",
-    stepRuntime: "Assembling runtime",
-    buildSteps: [
-      ["schema", "OpenAI structures the rules", 22],
-      ["personas", "Pioneer prepares personas", 48],
-      ["visuals", "fal plans visual assets", 73],
-      ["runtime", "Assembling runtime", 100]
-    ]
+    documentTitle: "GameForge · New game",
+    tagline: "Describe the game you want to play. We forge it while you breathe.",
+    speak: "Speak",
+    listening: "Listening…",
+    transcribing: "Transcribing…",
+    speakAgain: "Speak again",
+    placeholder: "Your request will appear here. You can edit it before generation.",
+    generate: "Generate game",
+    example: "I want a werewolf game in a medieval village, 8 players including 2 AIs."
   }
 };
 
-let exampleIndex = 0;
 let transcript = "";
 let captureState = "idle";
-let uiLanguage = localStorage.getItem("gameforge:uiLanguage") || "fr";
+const uiLanguage = detectBrowserLanguage();
 
 applyLanguage(uiLanguage);
-
-languageButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    applyLanguage(button.dataset.uiLang);
-  });
-});
-
-exampleButton.addEventListener("click", () => {
-  exampleIndex = (exampleIndex + 1) % voiceExamples.length;
-  setTranscript(voiceExamples[exampleIndex]);
-});
 
 micButton.addEventListener("click", async () => {
   if (captureState === "listening") return;
@@ -102,19 +44,22 @@ micButton.addEventListener("click", async () => {
   micButton.classList.add("listening");
   micButton.disabled = true;
   generateButton.disabled = true;
-  transcriptPanel.hidden = false;
-  transcriptText.textContent = t("listeningText");
-  micLabel.textContent = t("listen");
+  transcriptText.value = copy[uiLanguage].listening;
+  micLabel.textContent = "Listening";
 
   await sleep(900);
-  transcriptText.textContent = t("transcribingText");
+  transcriptText.value = copy[uiLanguage].transcribing;
   await sleep(650);
 
-  setTranscript(voiceExamples[exampleIndex]);
+  setTranscript(copy[uiLanguage].example);
   micButton.disabled = false;
   micButton.classList.remove("listening");
-  micLabel.textContent = t("talkAgain");
+  micLabel.textContent = copy[uiLanguage].speakAgain;
   captureState = "ready";
+});
+
+transcriptText.addEventListener("input", () => {
+  setTranscript(transcriptText.value, { preserveValue: true });
 });
 
 form.addEventListener("submit", async (event) => {
@@ -123,36 +68,17 @@ form.addEventListener("submit", async (event) => {
 
   generateButton.disabled = true;
   micButton.disabled = true;
-  progress.hidden = false;
-
-  for (const [stepId, label, percent] of copy[uiLanguage].buildSteps) {
-    setProgress(stepId, label, percent);
-    await sleep(760);
-  }
-
-  const result = await compileGameRequest({ transcript });
-
-  sessionStorage.setItem("gameforge:lastGame", JSON.stringify(result));
-  window.location.href = "./result.html";
+  sessionStorage.setItem("gameforge:pendingPrompt", transcript);
+  sessionStorage.setItem("gameforge:uiLanguage", detectLanguage(transcript));
+  window.location.href = "./prepare.html";
 });
 
-function setTranscript(value) {
+function setTranscript(value, options = {}) {
   transcript = value;
-  transcriptPanel.hidden = false;
-  transcriptText.textContent = value;
-  generateButton.disabled = false;
-  if (captureState !== "listening") {
-    micLabel.textContent = t("talkAgain");
+  if (!options.preserveValue) {
+    transcriptText.value = value;
   }
-}
-
-function setProgress(stepId, label, percent) {
-  progressLabel.textContent = label;
-  progressPercent.textContent = `${percent}%`;
-  progressBar.style.width = `${percent}%`;
-  steps.forEach((step) => {
-    step.classList.toggle("active", step.dataset.step === stepId);
-  });
+  generateButton.disabled = !value.trim();
 }
 
 function sleep(ms) {
@@ -160,25 +86,19 @@ function sleep(ms) {
 }
 
 function applyLanguage(language) {
-  uiLanguage = language === "en" ? "en" : "fr";
-  localStorage.setItem("gameforge:uiLanguage", uiLanguage);
-  document.documentElement.lang = uiLanguage;
-  document.querySelectorAll("[data-i18n]").forEach((element) => {
-    element.textContent = t(element.dataset.i18n);
-  });
-  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
-    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
-  });
-  languageButtons.forEach((button) => {
-    button.classList.toggle("active", button.dataset.uiLang === uiLanguage);
-  });
-  if (captureState === "idle") {
-    micLabel.textContent = t("talk");
-  } else if (captureState === "ready") {
-    micLabel.textContent = t("talkAgain");
-  }
+  const strings = copy[language];
+  document.documentElement.lang = language;
+  document.title = strings.documentTitle;
+  tagline.textContent = strings.tagline;
+  micLabel.textContent = strings.speak;
+  transcriptText.placeholder = strings.placeholder;
+  generateLabel.textContent = strings.generate;
 }
 
-function t(key) {
-  return copy[uiLanguage][key] || copy.fr[key] || key;
+function detectBrowserLanguage() {
+  return navigator.language?.toLowerCase().startsWith("fr") ? "fr" : "en";
+}
+
+function detectLanguage(value) {
+  return /\b(i want|game|players|including|speak|generate)\b/i.test(value) ? "en" : "fr";
 }

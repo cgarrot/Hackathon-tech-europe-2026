@@ -1,6 +1,6 @@
 # GameForge Web Input
 
-Cette brique est independante des integrations Gradium et fal. Elle sert uniquement a recueillir l'intention de jeu en langage naturel via un bouton vocal simule, simuler la compilation OpenAI, puis afficher une premiere page de jeu genere.
+Cette brique est independante des integrations Gradium et fal. Elle sert a recueillir l'intention de jeu en langage naturel via un bouton vocal simule, occuper l'utilisateur pendant la generation, puis afficher une premiere page de jeu genere.
 
 ## Lancer l'interface
 
@@ -18,21 +18,29 @@ http://127.0.0.1:4173/index.html
 
 ## Parcours
 
-1. L'utilisateur appuie sur le bouton micro.
-2. La page simule une transcription STT.
-3. La page affiche une simulation de pipeline:
-   - structuration des regles;
-   - preparation des personas;
-   - plan des assets visuels;
-   - assemblage du runtime.
-4. Le prototype stocke temporairement la representation du jeu dans `sessionStorage`.
-5. L'utilisateur est redirige vers `result.html`, qui represente la future page de jeu effectif.
+1. `index.html` detecte la langue du navigateur et affiche l'interface en francais ou en anglais.
+2. L'utilisateur appuie sur le bouton micro.
+3. La page simule une transcription STT.
+4. L'utilisateur peut corriger la transcription dans une zone de texte.
+5. `index.html` stocke la demande dans `sessionStorage` et redirige vers `prepare.html`.
+6. `prepare.html` affiche une attente immersive generique en plein ecran:
+   - transformation de la demande en promesse de partie;
+   - rythme des regles;
+   - intentions des personnages;
+   - premiere image du monde;
+   - placement des voix;
+   - ouverture de la scene.
+7. Une seule etape est affichee a la fois en grand, puis remplacee par la suivante.
+8. Le prototype stocke temporairement la representation du jeu dans `sessionStorage`.
+9. L'utilisateur est redirige vers `result.html`, qui represente la future page de jeu effectif.
 
 ## Fichiers
 
 - `web/gameforge-input/index.html`: page d'input.
+- `web/gameforge-input/prepare.html`: page d'attente immersive pendant la generation.
 - `web/gameforge-input/result.html`: page de jeu genere.
-- `web/gameforge-input/app.js`: orchestration UI, capture vocale simulee, progression et redirection.
+- `web/gameforge-input/app.js`: capture vocale simulee, edition de transcription et redirection.
+- `web/gameforge-input/prepare.js`: animation d'attente plein ecran et appel au Game Compiler.
 - `web/gameforge-input/compiler-adapter.js`: adapter du Game Compiler. C'est le seul endroit a remplacer par l'appel OpenAI reel.
 - `web/gameforge-input/result.js`: rendu de la page resultat.
 - `web/gameforge-input/styles.css`: design responsive.
@@ -76,6 +84,7 @@ et attend un objet compatible avec le contrat ci-dessous. Ce contrat reste techn
 }
 ```
 
+`sessionStorage["gameforge:pendingPrompt"]` transmet la demande entre `index.html` et `prepare.html`.
 `sessionStorage["gameforge:lastGame"]` sert uniquement au prototype pour transmettre cette representation de jeu a `result.html`.
 
 ## Remplacement futur
@@ -84,6 +93,7 @@ Trois points seront remplaces plus tard:
 
 - la capture simulee dans `micButton.addEventListener(...)`, par Gradium STT;
 - `compileGameRequest(...)`, par l'appel OpenAI reel;
+- les etapes fictionnelles de `prepare.js`, par les evenements reels de generation si disponibles;
 - `sessionStorage`, par l'etat applicatif ou le routeur du runtime final si une app plus large absorbe cette page.
 
 La reponse OpenAI doit retourner une representation equivalente du jeu. Cette representation alimente ensuite la page de jeu effective et les briques Gradium, fal et Pioneer.

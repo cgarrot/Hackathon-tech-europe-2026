@@ -7,89 +7,30 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section class="input-panel" aria-labelledby="page-title">
-        <div class="topbar">
-          <a class="brand" href="./index.html" aria-label="GameForge home">
-            <span class="brand-mark" aria-hidden="true">G</span>
-            <span>GameForge</span>
-          </a>
-          <div class="topbar-actions">
-            <div class="language-toggle" aria-label="Interface language">
-              <button type="button" class="language-option active" data-ui-lang="fr">FR</button>
-              <button type="button" class="language-option" data-ui-lang="en">EN</button>
-            </div>
-            <span class="status-chip" data-i18n="status">Prototype input</span>
-          </div>
+    <main class="input-overlay">
+      <form class="input-screen" id="game-form" aria-labelledby="page-title">
+        <div class="input-heading">
+          <h1 id="page-title">GameForge</h1>
+          <p id="tagline">Décris le jeu que tu veux jouer. On le forge pendant que tu respires.</p>
         </div>
 
-        <div class="main-grid">
-          <form class="composer" id="game-form">
-            <div>
-              <p class="eyebrow" data-i18n="eyebrow">Game Compiler</p>
-              <h1 id="page-title" data-i18n="title">Dis le jeu à générer</h1>
-              <p class="intro" data-i18n="intro">
-                Appuie, parle, puis laisse la compilation simulée transformer ta demande en jeu.
-              </p>
-            </div>
+        <button class="mic-button hero-mic-button" type="button" id="mic-button">
+          <span class="mic-icon" aria-hidden="true"></span>
+          <span id="mic-label">Speak</span>
+        </button>
 
-            <div class="voice-capture" id="voice-capture">
-              <button class="mic-button" type="button" id="mic-button" aria-describedby="mic-help">
-                <span class="mic-icon" aria-hidden="true"></span>
-                <span id="mic-label" data-i18n="talk">Parler</span>
-              </button>
-              <p id="mic-help" data-i18n="micHelp">Prototype vocal simulé. La future version branchera Gradium STT ici.</p>
-              <div class="transcript-panel" id="transcript-panel" hidden>
-                <span data-i18n="transcriptTitle">Transcription détectée</span>
-                <p id="transcript-text"></p>
-              </div>
-            </div>
+        <textarea
+          class="transcript-input"
+          id="transcript-text"
+          rows="4"
+          placeholder="Ta demande apparaîtra ici. Tu peux la modifier avant de générer."
+        ></textarea>
 
-            <div class="action-row">
-              <button class="primary-button" type="submit" id="generate-button" disabled>
-                <span class="button-icon" aria-hidden="true">↗</span>
-                <span data-i18n="generate">Générer</span>
-              </button>
-              <button class="ghost-button" type="button" id="example-button" data-i18n="example">Changer d’exemple</button>
-            </div>
-
-            <div class="progress" id="progress" hidden aria-live="polite">
-              <div class="progress-header">
-                <span id="progress-label" data-i18n="progressIdle">Compilation du jeu…</span>
-                <span id="progress-percent">0%</span>
-              </div>
-              <div class="progress-track">
-                <div class="progress-bar" id="progress-bar"></div>
-              </div>
-              <ol class="steps" id="steps">
-                <li data-step="schema" data-i18n="stepSchema">Structuration des règles</li>
-                <li data-step="personas" data-i18n="stepPersonas">Préparation des personas IA</li>
-                <li data-step="visuals" data-i18n="stepVisuals">Plan d’assets visuels</li>
-                <li data-step="runtime" data-i18n="stepRuntime">Assemblage du runtime</li>
-              </ol>
-            </div>
-          </form>
-
-          <aside class="preview-panel" aria-label="Aperçu du jeu généré" data-i18n-aria-label="previewAria">
-            <div class="table-visual" aria-hidden="true">
-              <div class="board-ring"></div>
-              <div class="role-card card-wolf"></div>
-              <div class="role-card card-seer"></div>
-              <div class="role-card card-villager"></div>
-              <div class="token token-one"></div>
-              <div class="token token-two"></div>
-              <div class="token token-three"></div>
-            </div>
-            <div class="preview-copy">
-              <h2 data-i18n="previewTitle">Jeu prêt à lancer</h2>
-              <p data-i18n="previewText">
-                La page suivante affichera le jeu généré : personnages, déroulé de partie et
-                emplacements prévus pour les voix, visuels et IA.
-              </p>
-            </div>
-          </aside>
-        </div>
-      </section>
+        <button class="primary-button hero-generate-button" type="submit" id="generate-button" disabled>
+          <span class="button-icon" aria-hidden="true">↗</span>
+          <span id="generate-label">Générer le jeu</span>
+        </button>
+      </form>
     </main>
 
     <script src="./app.js" type="module"></script>

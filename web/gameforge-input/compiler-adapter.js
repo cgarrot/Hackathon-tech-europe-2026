@@ -1,10 +1,3 @@
-export const voiceExamples = [
-  "Je veux jouer à un jeu de loup-garou dans un village médiéval, 8 joueurs dont 2 IA, avec une voyante et une sorcière.",
-  "Je veux un jeu d’enquête policière, un meurtre dans un manoir, 6 suspects dont 3 IA, un détective humain.",
-  "Je veux un jeu de survie sur une île, 10 joueurs, élimination chaque tour, les IA sont des éléments naturels hostiles.",
-  "I want a philosophy debate game with 4 AIs as Socrates, Nietzsche, Simone Weil and Kanye West, and the audience votes."
-];
-
 export async function compileGameRequest({ transcript }) {
   const inferred = inferRequest(transcript);
   return createPseudoGame({

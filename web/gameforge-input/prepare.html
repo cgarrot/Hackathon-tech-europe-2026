@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GameForge · Préparation</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="prepare-overlay" aria-labelledby="build-label">
+      <section class="prepare-screen" aria-live="polite">
+        <a class="prepare-brand" href="./index.html" aria-label="GameForge home">
+          <span class="brand-mark" aria-hidden="true">G</span>
+          <span>GameForge</span>
+        </a>
+
+        <div class="forge-visual prepare-visual" aria-hidden="true">
+          <div class="forge-core"></div>
+          <div class="forge-orbit orbit-one"></div>
+          <div class="forge-orbit orbit-two"></div>
+          <div class="forge-card card-one"></div>
+          <div class="forge-card card-two"></div>
+          <div class="forge-card card-three"></div>
+        </div>
+
+        <div class="prepare-message">
+          <p class="eyebrow" id="prepare-eyebrow">Préparation</p>
+          <h1 id="build-label">La demande devient une promesse de partie.</h1>
+          <p id="prompt-text"></p>
+        </div>
+
+        <div class="prepare-progress">
+          <div class="progress-track">
+            <div class="progress-bar" id="build-bar"></div>
+          </div>
+          <span id="build-percent">0%</span>
+        </div>
+      </section>
+    </main>
+
+    <script src="./prepare.js" type="module"></script>
+  </body>
+</html>
