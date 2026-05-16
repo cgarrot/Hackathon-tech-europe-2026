@@ -1055,16 +1055,17 @@ pre {
 }
 
 .generated-game-fullscreen {
+  --gameforge-visual-background: url("../data/img/bg.jpg");
   position: relative;
   min-height: 100vh;
   overflow: hidden auto;
   padding: 20px 16px 16px;
   color: #16201c;
   background:
-    linear-gradient(180deg, rgba(245, 247, 245, 0.56), rgba(238, 243, 239, 0.74)),
-    radial-gradient(circle at 58% 28%, rgba(200, 131, 45, 0.12), transparent 30%),
-    radial-gradient(circle at 18% 74%, rgba(36, 113, 90, 0.12), transparent 34%),
-    url("../data/img/bg.jpg") center / cover fixed no-repeat,
+    linear-gradient(180deg, rgba(245, 247, 245, 0.28), rgba(238, 243, 239, 0.64) 46%, rgba(238, 243, 239, 0.86)),
+    radial-gradient(circle at 58% 28%, rgba(200, 131, 45, 0.14), transparent 30%),
+    radial-gradient(circle at 18% 74%, rgba(36, 113, 90, 0.14), transparent 34%),
+    var(--gameforge-visual-background) center / cover fixed no-repeat,
     #f5f7f5;
 }
 
@@ -1074,10 +1075,10 @@ pre {
   z-index: 0;
   pointer-events: none;
   content: "";
-  opacity: 0.5;
+  opacity: 0.58;
   background-image:
-    linear-gradient(rgba(36, 113, 90, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(36, 113, 90, 0.045) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
   background-size: 46px 46px;
   mask-image: radial-gradient(circle at 52% 48%, black, transparent 78%);
 }
@@ -1305,6 +1306,121 @@ pre {
 .generated-live-dot-error {
   background: var(--danger);
   box-shadow: 0 0 0 8px rgba(255, 139, 139, 0.16);
+}
+
+.fal-visual-stage {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.fal-primary-visual {
+  position: relative;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(244, 184, 96, 0.26);
+  border-radius: var(--radius-xl);
+  background: rgba(0, 0, 0, 0.34);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
+}
+
+.fal-primary-visual img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  object-fit: cover;
+}
+
+.fal-primary-visual::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 42%, rgba(0, 0, 0, 0.78));
+  content: "";
+  pointer-events: none;
+}
+
+.fal-primary-visual figcaption {
+  position: absolute;
+  inset: auto var(--space-4) var(--space-4);
+  z-index: 1;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.fal-primary-visual span,
+.fal-primary-visual em,
+.fal-visual-strip span,
+.fal-generation-pill {
+  color: var(--accent-2);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fal-primary-visual strong {
+  color: #fff7e8;
+  font-size: clamp(1.45rem, 3.2vw, 3.4rem);
+  line-height: 0.95;
+}
+
+.fal-primary-visual em {
+  color: var(--text-soft);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.fal-visual-placeholder {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-3);
+  min-height: 470px;
+  border: 1px solid rgba(244, 184, 96, 0.28);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(244, 184, 96, 0.18), transparent 12rem),
+    rgba(0, 0, 0, 0.32);
+}
+
+.fal-visual-placeholder h2,
+.fal-visual-placeholder p {
+  margin: 0;
+}
+
+.fal-visual-placeholder h2 {
+  max-width: 720px;
+  font-size: clamp(2rem, 4vw, 4.4rem);
+  line-height: 0.95;
+}
+
+.fal-visual-placeholder p {
+  max-width: 520px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
+.fal-visual-placeholder-live {
+  animation: inputPulse 1.2s ease-in-out infinite;
+}
+
+.fal-generation-pill {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 3;
+  border: 1px solid rgba(154, 230, 180, 0.32);
+  border-radius: var(--radius-pill);
+  padding: 0.42rem 0.65rem;
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .generated-game-board {

@@ -3,7 +3,8 @@
 import type { ForgeResult } from "@/compiler/schemas";
 import type { VoiceGameEvent, VoiceGamePublicSession } from "@/game-session/voice-game-engine";
 import type { GeneratedProject } from "@/generator/schemas";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { GeneratedVisualSet } from "@/server/fal-visuals";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 
 type SuccessResponse = {
   ok: true;
@@ -28,6 +29,13 @@ type ProjectSuccessResponse = {
 };
 
 type ProjectResponse = ProjectSuccessResponse | ErrorResponse;
+
+type VisualsSuccessResponse = {
+  ok: true;
+  visualSet: GeneratedVisualSet;
+};
+
+type VisualsResponse = VisualsSuccessResponse | ErrorResponse;
 
 type VoiceSessionSuccessResponse = {
   ok: true;
@@ -779,34 +787,6 @@ function activeSpeakerBody(params: {
   return params.activeEvent?.text ?? params.activePhase?.purpose ?? "Start the session to see every action, line, and mic window live.";
 }
 
-function entityKindLabel(kind: PlayableEntityKind) {
-  if (kind === "collectible") {
-    return "Collectible";
-  }
-  if (kind === "goal") {
-    return "Exit";
-  }
-  return "Hazard";
-}
-
-function entityKindIcon(kind: PlayableEntityKind) {
-  if (kind === "collectible") {
-    return "◆";
-  }
-  if (kind === "goal") {
-    return "◎";
-  }
-  return "▲";
-}
-
-function runtimeCells(runtime: PlayableRuntimeSpec) {
-  return Array.from({ length: runtime.world.width * runtime.world.height }, (_, index) => ({
-    id: `cell_${index}`,
-    x: index % runtime.world.width,
-    y: Math.floor(index / runtime.world.width)
-  }));
-}
-
 function loadingProgress(progress: ForgeProgressEvent | null) {
   if (!progress) {
     return initialLoadingProgress;
@@ -847,11 +827,63 @@ function ForgeLoadingScreen({ prompt, progressEvent }: { prompt: string; progres
   );
 }
 
+function FalVisualStage({
+  visualSet,
+  isGenerating,
+  error,
+  fallbackTitle
+}: {
+  visualSet: GeneratedVisualSet | null;
+  isGenerating: boolean;
+  error: ErrorResponse | null;
+  fallbackTitle: string;
+}) {
+  const assets = visualSet?.assets ?? [];
+  const primaryAsset = assets.find((asset) => asset.sourceKind === "hero" || asset.sourceKind === "scene") ?? assets[0];
+  const primaryImage = primaryAsset?.images[0];
+
+  return (
+    <div className="fal-visual-stage" aria-label="Visuels générés par fal">
+      {primaryImage ? (
+        <figure className="fal-primary-visual">
+          <img src={primaryImage.url} alt={primaryAsset.title} />
+          <figcaption>
+            <span>fal · {primaryAsset.assetType}</span>
+            <strong>{primaryAsset.title}</strong>
+            <em>{primaryAsset.usage}</em>
+          </figcaption>
+        </figure>
+      ) : (
+        <div className={`fal-visual-placeholder${isGenerating ? " fal-visual-placeholder-live" : ""}`} role="status">
+          <div className="voice-orb" aria-hidden="true" />
+          <p className="eyebrow">fal visuals</p>
+          <h2>{isGenerating ? "Génération des décors et cartes..." : fallbackTitle}</h2>
+          <p>{error ? formatError(error) : "Les backgrounds, scènes et cartes de personnage apparaîtront ici."}</p>
+        </div>
+      )}
+
+      {isGenerating && primaryImage ? <span className="fal-generation-pill">fal continue...</span> : null}
+    </div>
+  );
+}
+
+function primaryFalVisualAsset(visualSet: GeneratedVisualSet | null) {
+  const assets = visualSet?.assets ?? [];
+  return assets.find((asset) => asset.sourceKind === "hero" || asset.sourceKind === "scene") ?? assets[0];
+}
+
+function cssUrl(value: string) {
+  return `url("${value.replaceAll('"', "%22")}")`;
+}
+
 function GeneratedGameFullscreen({
   result,
   mode,
   project,
   runtime,
+  visualSet,
+  isGeneratingVisuals,
+  visualError,
   isGeneratingProject,
   session,
   runStatus,
@@ -861,6 +893,7 @@ function GeneratedGameFullscreen({
   activeEventSequence,
   onStartVoiceGame,
   onEndVoiceInput,
+  onGenerateVisuals,
   onSpeakPersona,
   speakingPersonaId,
   onGenerateProject,
@@ -872,6 +905,9 @@ function GeneratedGameFullscreen({
   mode: ProviderMode;
   project: GeneratedProject | null;
   runtime: PlayableRuntimeResult | null;
+  visualSet: GeneratedVisualSet | null;
+  isGeneratingVisuals: boolean;
+  visualError: ErrorResponse | null;
   isGeneratingProject: boolean;
   session: VoiceGamePublicSession | null;
   runStatus: VoiceSessionRunStatus;
@@ -881,6 +917,7 @@ function GeneratedGameFullscreen({
   activeEventSequence: number | null;
   onStartVoiceGame: () => void;
   onEndVoiceInput: () => void;
+  onGenerateVisuals: () => void;
   onSpeakPersona: (persona: PersonaSpec) => void;
   speakingPersonaId: string | null;
   onGenerateProject: () => void;
@@ -892,25 +929,23 @@ function GeneratedGameFullscreen({
   const activePhase = session?.activePhase ?? runtimeSpec?.phases[0] ?? result.gameSpec.phases[0];
   const activeEvent = findActiveVoiceEvent(session, activeEventSequence) ?? latestVoiceEvent(session);
   const activeVisual = visualEventForCurrentStep(session, activeEventSequence);
-  const extractionStep = result.pipeline.find((step) => step.stage === "pioneer_gliner_extraction");
-  const boardCells = runtimeSpec ? runtimeCells(runtimeSpec) : [];
-  const playerGridStyle = runtimeSpec
-    ? { gridColumn: runtimeSpec.player.spawn.x + 1, gridRow: runtimeSpec.player.spawn.y + 1 }
-    : undefined;
   const phaseSource = runtimeSpec?.phases ?? result.gameSpec.phases;
   const currentPhaseIndex = session ? phaseSource.findIndex((phase) => phase.id === session.activePhase.id) : 0;
   const phaseProgress = session
     ? `${Math.max(1, currentPhaseIndex + 1)}/${phaseSource.length}`
     : runtimeSpec ? `1/${runtimeSpec.phases.length}` : "setup";
-  const visibleParticipants = session?.participants.slice(0, 8) ?? [];
   const inputWindowIsLive = runStatus === "listening";
   const playerGuidance = playerGuidanceFor({ phase: activePhase, session, runStatus, remainingSeconds, inputWindowIsLive });
   const speakerTitle = activeSpeakerTitle({ activeEvent, runStatus, session });
   const speakerBody = activeSpeakerBody({ activeEvent, runStatus, session, activePhase });
   const ownPlayer = session?.ownPlayer;
+  const falBackgroundImage = primaryFalVisualAsset(visualSet)?.images[0]?.url;
+  const gameBackgroundStyle = falBackgroundImage
+    ? ({ "--gameforge-visual-background": cssUrl(falBackgroundImage) } as CSSProperties)
+    : undefined;
 
   return (
-    <main className="generated-game-fullscreen" aria-labelledby="generated-game-title">
+    <main className="generated-game-fullscreen" style={gameBackgroundStyle} aria-labelledby="generated-game-title">
       <header className="generated-game-topbar">
         <div className="generated-topbar-shelf">
           <div className="generated-brand">
@@ -944,54 +979,20 @@ function GeneratedGameFullscreen({
             </div>
             <em>{session ? `round ${session.round} · phase ${phaseProgress}` : "visual backdrop"}</em>
           </div>
-          {runtimeSpec ? (
-            <div
-              className="generated-game-board"
-              style={{ gridTemplateColumns: `repeat(${runtimeSpec.world.width}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${runtimeSpec.world.height}, minmax(0, 1fr))` }}
-              aria-label={`Playable grid ${runtimeSpec.world.width} by ${runtimeSpec.world.height}`}
-            >
-              {boardCells.map((cell) => <span aria-hidden="true" className="generated-board-cell" key={cell.id} />)}
-              {runtimeSpec.entities.map((entity) => (
-                <article
-                  className={`generated-board-entity generated-board-${entity.kind}`}
-                  key={entity.id}
-                  style={{ gridColumn: entity.x + 1, gridRow: entity.y + 1 }}
-                  title={`${entityKindLabel(entity.kind)}: ${entity.description}`}
-                >
-                  <span aria-hidden="true">{entity.token || entityKindIcon(entity.kind)}</span>
-                  <strong>{entity.label}</strong>
-                </article>
-              ))}
-              <div className="generated-board-player" style={playerGridStyle} title={runtimeSpec.player.label}>
-                <span aria-hidden="true">@</span>
-                <strong>{runtimeSpec.player.label}</strong>
-              </div>
-            </div>
-          ) : (
-            <div className={`generated-live-scene voice-session-${runStatus}`} role="status">
-              <div className="voice-orb" aria-hidden="true" />
-              <p className="eyebrow">Live scene</p>
-              <h2>{isGeneratingProject && !session ? "Preparing visual scaffold…" : activePhase?.name ?? "Board ready"}</h2>
-              <p>{activeEvent?.text ?? activeVisual?.text ?? activePhase?.purpose ?? "Start running: phases, lines, replies, and decisions surface here live."}</p>
-              {visibleParticipants.length > 0 ? (
-                <div className="voice-actors generated-live-scene-actors" aria-label="Participants">
-                  {visibleParticipants.map((participant) => (
-                    <span className={participant.alive ? undefined : "inactive-actor"} key={participant.id} title={participant.displayName}>
-                      {participant.displayName.slice(0, 1).toUpperCase()}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          )}
-          {runtimeSpec ? (
-            <div className="generated-board-legend" aria-label="Board legend">
-              <span><strong>◆</strong> collectible</span>
-              <span><strong>▲</strong> hazard</span>
-              <span><strong>◎</strong> exit</span>
-              <span><strong>@</strong> player</span>
-            </div>
-          ) : null}
+          <FalVisualStage
+            visualSet={visualSet}
+            isGenerating={isGeneratingVisuals}
+            error={visualError}
+            fallbackTitle={isGeneratingProject && !session ? "Preparing visual scaffold…" : activePhase?.name ?? result.gameSpec.title}
+          />
+          <div className="generated-board-legend" aria-label="fal visual status">
+            <span><strong>fal</strong> {visualSet?.model ?? "flux/schnell"}</span>
+            <span><strong>{visualSet?.assets.length ?? 0}</strong> assets</span>
+            <span><strong>{falBackgroundImage ? "background" : "pending"}</strong> page image</span>
+            <button type="button" className="secondary" onClick={onGenerateVisuals} disabled={isGeneratingVisuals}>
+              {isGeneratingVisuals ? "fal..." : "Regenerate fal"}
+            </button>
+          </div>
         </div>
 
         <aside className="generated-game-hud" aria-label="Session controls">
@@ -1057,6 +1058,13 @@ function GeneratedGameFullscreen({
             </section>
           ) : null}
 
+          {visualError ? (
+            <section className="generated-hud-card generated-runtime-errors" role="alert">
+              <span className="preview-label">fal visuels</span>
+              <ul><li>{formatError(visualError)}</li></ul>
+            </section>
+          ) : null}
+
           {voiceMessage || voiceError ? (
             <section className={`generated-hud-card generated-voice-status${voiceError ? " generated-voice-status-error" : ""}`} role={voiceError ? "alert" : "status"}>
               <span className="preview-label">Voice status</span>
@@ -1097,7 +1105,6 @@ function GeneratedGameFullscreen({
             </div>
             <div className="badges">
               <span className="badge">Provider: {providerModeLabel(mode)}</span>
-              {extractionStep ? <span className="badge">GLiNER {extractionStep.status}</span> : null}
               <span className="badge">{result.gameSpec.family}</span>
               <span className="badge">{result.gameSpec.pack}</span>
             </div>
@@ -1428,8 +1435,10 @@ export function ForgeClient() {
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [projectResponse, setProjectResponse] = useState<ProjectResponse | null>(null);
+  const [visualsResponse, setVisualsResponse] = useState<VisualsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingProject, setIsGeneratingProject] = useState(false);
+  const [isGeneratingVisuals, setIsGeneratingVisuals] = useState(false);
   const [isStartingPromptRecording, setIsStartingPromptRecording] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -1452,6 +1461,8 @@ export function ForgeClient() {
   const result = response?.ok ? response.result : null;
   const providerMode = response?.ok ? response.mode : null;
   const generatedProject = projectResponse?.ok ? projectResponse.project : null;
+  const generatedVisualSet = visualsResponse?.ok ? visualsResponse.visualSet : null;
+  const visualError = visualsResponse && !visualsResponse.ok ? visualsResponse : null;
   const playableRuntime = useMemo(() => playableRuntimeFromProject(generatedProject), [generatedProject]);
   const isPromptVoiceBusy = isStartingPromptRecording || isRecording || isTranscribing;
   const voiceSessionBusy = voiceSessionStatus === "starting" || voiceSessionStatus === "speaking" || voiceSessionStatus === "listening" || voiceSessionStatus === "advancing";
@@ -2018,6 +2029,29 @@ export function ForgeClient() {
     }
   }
 
+  async function generateVisualsForResult(forgeResult: ForgeResult, resetVisuals: boolean) {
+    setIsGeneratingVisuals(true);
+    if (resetVisuals) {
+      setVisualsResponse(null);
+    }
+
+    try {
+      const apiResponse = await fetch("/api/visuals/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forgeResult, maxAssets: 4 })
+      });
+      const json = apiResponse.ok
+        ? await apiResponse.json() as VisualsResponse
+        : await readApiErrorResponse(apiResponse, "fal_visual_generation_failed");
+      setVisualsResponse(json);
+    } catch (error) {
+      setVisualsResponse({ ok: false, error: error instanceof Error ? error.message : "visual_generation_network_error" });
+    } finally {
+      setIsGeneratingVisuals(false);
+    }
+  }
+
   async function compileGame() {
     if (promptRecordingStartingRef.current || isPromptVoiceBusy || recorderRef.current?.state === "recording" || prompt.trim().length < 8) {
       if (recorderRef.current?.state === "recording") {
@@ -2040,6 +2074,7 @@ export function ForgeClient() {
     setForgeProgress(null);
     setResponse(null);
     setProjectResponse(null);
+    setVisualsResponse(null);
 
     try {
       const apiResponse = await fetch("/api/forge?stream=1", {
@@ -2069,6 +2104,7 @@ export function ForgeClient() {
           };
           setResponse(finalResponse);
           void generateProjectForResult(event.result, false);
+          void generateVisualsForResult(event.result, false);
           return;
         }
 
@@ -2092,6 +2128,14 @@ export function ForgeClient() {
     }
 
     await generateProjectForResult(result, true);
+  }
+
+  async function generateVisuals() {
+    if (!result) {
+      return;
+    }
+
+    await generateVisualsForResult(result, true);
   }
 
   function downloadPackage() {
@@ -2129,6 +2173,8 @@ export function ForgeClient() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     setResponse(null);
     setProjectResponse(null);
+    setVisualsResponse(null);
+    setIsGeneratingVisuals(false);
     setVoiceSession(null);
     setVoiceSessionStatus("idle");
     setVoiceWindowRemaining(0);
@@ -2158,6 +2204,9 @@ export function ForgeClient() {
         mode={providerMode}
         project={generatedProject}
         runtime={playableRuntime}
+        visualSet={generatedVisualSet}
+        isGeneratingVisuals={isGeneratingVisuals}
+        visualError={visualError}
         isGeneratingProject={isGeneratingProject}
         session={voiceSession}
         runStatus={voiceSessionStatus}
@@ -2167,6 +2216,7 @@ export function ForgeClient() {
         activeEventSequence={activeVoiceEventSequence}
         onStartVoiceGame={startVoiceGameSession}
         onEndVoiceInput={endVoiceInputEarly}
+        onGenerateVisuals={generateVisuals}
         onSpeakPersona={speakPersona}
         speakingPersonaId={speakingPersonaId}
         onGenerateProject={generateProject}
