@@ -4,6 +4,25 @@ Prototypes d'integration independants pour GameForge:
 
 - `gameforge_voice` / `gameforge_gradium`: STT/TTS avec Gradium.
 - `gameforge_visuals` / `gameforge_fal`: generation d'images avec fal.
+- `web/gameforge-input`: interface web d'input en langage naturel.
+
+## Web Input
+
+Interface sobre pour recueillir la volonte de jeu, simuler la compilation OpenAI, puis afficher un pseudo jeu genere.
+
+```bash
+python3 -m http.server 4173 --directory web/gameforge-input
+```
+
+Puis ouvrir:
+
+```text
+http://127.0.0.1:4173/index.html
+```
+
+Voir aussi:
+
+- [docs/web-input.md](docs/web-input.md)
 
 ## Voice: Gradium
 
