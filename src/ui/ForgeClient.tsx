@@ -47,6 +47,9 @@ const loadingSteps = [
   { label: "La porte s’ouvre.", percent: 100 }
 ];
 
+const isDevelopmentMode = process.env.NODE_ENV === "development";
+const devPromptWithoutStt = "Crée un jeu coopératif de 4 joueurs dans une station sous-marine hantée, avec des rôles secrets, des indices audio et une phase finale contre la montre.";
+
 const errorLabels: Record<string, string> = {
   invalid_llm_provider: "LLM_PROVIDER doit valoir openai, ollama ou pioneer.",
   missing_llm_provider_configuration: "Configure un vrai provider LLM côté serveur avant de compiler.",
@@ -419,6 +422,56 @@ function latestVisualEvent(session: VoiceGamePublicSession | null) {
   return session?.events.findLast((event) => event.visualCue) ?? null;
 }
 
+function latestVoiceEvent(session: VoiceGamePublicSession | null) {
+  return session?.events.at(-1) ?? null;
+}
+
+function findActiveVoiceEvent(session: VoiceGamePublicSession | null, activeEventSequence: number | null) {
+  if (!session || activeEventSequence === null) {
+    return null;
+  }
+
+  return session.events.find((event) => event.sequence === activeEventSequence) ?? null;
+}
+
+function visualEventForCurrentStep(session: VoiceGamePublicSession | null, activeEventSequence: number | null) {
+  const activeEvent = findActiveVoiceEvent(session, activeEventSequence);
+  if (activeEvent?.visualCue) {
+    return activeEvent;
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  if (activeEventSequence !== null) {
+    return session.events.findLast((event) => Boolean(event.visualCue) && event.sequence <= activeEventSequence) ?? latestVisualEvent(session);
+  }
+
+  return latestVisualEvent(session);
+}
+
+function eventKindLabel(kind: VoiceGameEvent["kind"]) {
+  switch (kind) {
+    case "session_started":
+      return "Départ";
+    case "phase_started":
+      return "Phase";
+    case "utterance":
+      return "Réplique";
+    case "visual_cue":
+      return "Visuel";
+    case "input_window":
+      return "À toi";
+    case "transcript_received":
+      return "Réponse";
+    case "state_updated":
+      return "État";
+    case "game_ended":
+      return "Fin";
+  }
+}
+
 function sessionStatusLabel(status: VoiceSessionRunStatus) {
   if (status === "starting") {
     return "démarrage";
@@ -520,6 +573,9 @@ function GeneratedGameFullscreen({
   session,
   runStatus,
   remainingSeconds,
+  voiceMessage,
+  voiceError,
+  activeEventSequence,
   onStartVoiceGame,
   onSpeakPersona,
   speakingPersonaId,
@@ -536,6 +592,9 @@ function GeneratedGameFullscreen({
   session: VoiceGamePublicSession | null;
   runStatus: VoiceSessionRunStatus;
   remainingSeconds: number;
+  voiceMessage: string | null;
+  voiceError: ErrorResponse | null;
+  activeEventSequence: number | null;
   onStartVoiceGame: () => void;
   onSpeakPersona: (persona: PersonaSpec) => void;
   speakingPersonaId: string | null;
@@ -546,8 +605,9 @@ function GeneratedGameFullscreen({
 }) {
   const runtimeSpec = runtime?.ok ? runtime.spec : null;
   const activePhase = session?.activePhase ?? runtimeSpec?.phases[0] ?? result.gameSpec.phases[0];
-  const activeVisual = latestVisualEvent(session);
-  const recentEvents = session?.events.slice(-5).reverse() ?? [];
+  const activeEvent = findActiveVoiceEvent(session, activeEventSequence) ?? latestVoiceEvent(session);
+  const activeVisual = visualEventForCurrentStep(session, activeEventSequence);
+  const recentEvents = session?.events.slice(-10).reverse() ?? [];
   const visibleRoles = result.gameSpec.rolesOrActors.slice(0, 6);
   const visiblePersonas = result.package.personas.slice(0, 3);
   const extractionStep = result.pipeline.find((step) => step.stage === "pioneer_gliner_extraction");
@@ -555,6 +615,12 @@ function GeneratedGameFullscreen({
   const playerGridStyle = runtimeSpec
     ? { gridColumn: runtimeSpec.player.spawn.x + 1, gridRow: runtimeSpec.player.spawn.y + 1 }
     : undefined;
+  const phaseSource = runtimeSpec?.phases ?? result.gameSpec.phases;
+  const currentPhaseIndex = session ? phaseSource.findIndex((phase) => phase.id === session.activePhase.id) : 0;
+  const phaseProgress = session
+    ? `${Math.max(1, currentPhaseIndex + 1)}/${phaseSource.length}`
+    : runtimeSpec ? `1/${runtimeSpec.phases.length}` : "setup";
+  const visibleParticipants = session?.participants.slice(0, 8) ?? [];
 
   return (
     <main className="generated-game-fullscreen" aria-labelledby="generated-game-title">
@@ -587,6 +653,14 @@ function GeneratedGameFullscreen({
         </div>
 
         <div className="generated-game-board-wrap" aria-live="polite">
+          <div className="generated-live-banner">
+            <span className={`generated-live-dot generated-live-dot-${runStatus}`} aria-hidden="true" />
+            <div>
+              <strong>{activeEvent ? `${eventKindLabel(activeEvent.kind)} · ${activeEvent.speaker.displayName}` : "Table prête"}</strong>
+              <p>{activeEvent?.text ?? activePhase?.purpose ?? "Lance la partie pour voir chaque action, réplique et fenêtre micro en direct."}</p>
+            </div>
+            <em>{session ? `tour ${session.round} · phase ${phaseProgress}` : "runtime visuel"}</em>
+          </div>
           {runtimeSpec ? (
             <div
               className="generated-game-board"
@@ -625,6 +699,12 @@ function GeneratedGameFullscreen({
               <p className="hint">{isGeneratingProject ? "Le jeu est compilé; génération du manifest plein écran en cours." : "Relance la génération du manifest projet pour afficher le plateau."}</p>
             </div>
           )}
+          <div className="generated-board-legend" aria-label="Légende du plateau">
+            <span><strong>◆</strong> objectif</span>
+            <span><strong>▲</strong> danger</span>
+            <span><strong>◎</strong> sortie</span>
+            <span><strong>@</strong> joueur</span>
+          </div>
         </div>
 
         <aside className="generated-game-hud" aria-label="Contrôles de partie">
@@ -634,9 +714,19 @@ function GeneratedGameFullscreen({
             <p>{activeVisual?.text ?? activePhase?.purpose ?? result.gameSpec.coreLoop[0]}</p>
             <div className="inline-play-stats">
               <span>{sessionStatusLabel(runStatus)}</span>
-              <span>{runStatus === "listening" ? `${remainingSeconds}s voix` : session ? `round ${session.round}` : "runtime"}</span>
+              <span>{runStatus === "listening" ? `${remainingSeconds}s voix` : session ? `tour ${session.round}` : "runtime"}</span>
+              <span>phase {phaseProgress}</span>
               <span>{runtimeSpec ? `${runtimeSpec.rules.collectibleCount} objectifs` : "manifest"}</span>
             </div>
+            <div className="generated-phase-actions" aria-label="Actions possibles">
+              {(activePhase?.allowedActions ?? []).slice(0, 5).map((action) => <span key={action}>{action}</span>)}
+            </div>
+            {session?.pendingInput ? (
+              <div className="generated-input-window" role="status">
+                <strong>Fenêtre vocale ouverte</strong>
+                <span>{session.pendingInput.prompt}</span>
+              </div>
+            ) : null}
             <button type="button" onClick={onStartVoiceGame} disabled={runStatus === "starting" || runStatus === "speaking" || runStatus === "listening" || runStatus === "advancing"}>
               {runStatus === "ended" ? "Relancer la partie" : runStatus === "idle" || runStatus === "error" ? "Commencer" : "Partie en cours..."}
             </button>
@@ -646,6 +736,14 @@ function GeneratedGameFullscreen({
             <section className="generated-hud-card generated-runtime-errors" role="alert">
               <span className="preview-label">Runtime invalide</span>
               <ul>{runtime.errors.map((error) => <li key={error}>{error}</li>)}</ul>
+            </section>
+          ) : null}
+
+          {voiceMessage || voiceError ? (
+            <section className={`generated-hud-card generated-voice-status${voiceError ? " generated-voice-status-error" : ""}`} role={voiceError ? "alert" : "status"}>
+              <span className="preview-label">Statut voix</span>
+              <strong>{voiceError ? "Action bloquée" : sessionStatusLabel(runStatus)}</strong>
+              <p>{voiceError ? formatError(voiceError) : voiceMessage}</p>
             </section>
           ) : null}
 
@@ -674,11 +772,29 @@ function GeneratedGameFullscreen({
             </section>
           ) : null}
 
+          {visibleParticipants.length > 0 ? (
+            <section className="generated-hud-card generated-participant-radar">
+              <span className="preview-label">Participants live</span>
+              <div>
+                {visibleParticipants.map((participant) => (
+                  <span className={participant.alive ? undefined : "inactive-actor"} key={participant.id} title={participant.displayName}>
+                    <strong>{participant.displayName.slice(0, 1).toUpperCase()}</strong>
+                    <em>{participant.kind === "human" ? "humain" : "IA"}</em>
+                  </span>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <section className="generated-hud-card generated-event-log">
             <span className="preview-label">Journal live</span>
             <ol>
               {recentEvents.length > 0 ? recentEvents.map((event) => (
-                <li key={event.id}><strong>{event.speaker.displayName}</strong><span>{event.text}</span></li>
+                <li className={event.sequence === activeEventSequence ? "generated-event-current" : undefined} key={event.id}>
+                  <em>{String(event.sequence).padStart(2, "0")} · {eventKindLabel(event.kind)}</em>
+                  <strong>{event.speaker.displayName}</strong>
+                  <span>{event.text}</span>
+                </li>
               )) : <li><strong>Prêt</strong><span>Le journal vocal se remplit après Start.</span></li>}
             </ol>
           </section>
@@ -695,6 +811,7 @@ function GeneratedGameFullscreen({
             session={session}
             runStatus={runStatus}
             remainingSeconds={remainingSeconds}
+            activeEventSequence={activeEventSequence}
             onStart={onStartVoiceGame}
           />
           <GameSupportPreview
@@ -721,6 +838,7 @@ function PlayableRuntimePreview({
   session,
   runStatus,
   remainingSeconds,
+  activeEventSequence,
   onStart
 }: {
   result: ForgeResult | null;
@@ -729,9 +847,11 @@ function PlayableRuntimePreview({
   session: VoiceGamePublicSession | null;
   runStatus: VoiceSessionRunStatus;
   remainingSeconds: number;
+  activeEventSequence: number | null;
   onStart: () => void;
 }) {
-  const activeVisual = latestVisualEvent(session);
+  const activeEvent = findActiveVoiceEvent(session, activeEventSequence) ?? latestVoiceEvent(session);
+  const activeVisual = visualEventForCurrentStep(session, activeEventSequence);
   const activePhase = session?.activePhase;
   const recentEvents = session?.events.slice(-8).reverse() ?? [];
   const storyboardEvents = session?.events.filter((event) => event.visualCue).slice(-8) ?? [];
@@ -758,7 +878,7 @@ function PlayableRuntimePreview({
           <div className="voice-orb" aria-hidden="true" />
           <p className="eyebrow">Animation visuelle</p>
           <h4>{activePhase?.name ?? result?.gameSpec.title ?? "Partie vocale"}</h4>
-          <p>{activeVisual?.text ?? activePhase?.purpose ?? "Le moteur attend le Start pour dérouler automatiquement les phases."}</p>
+          <p>{activeEvent?.text ?? activeVisual?.text ?? activePhase?.purpose ?? "Le moteur attend le Start pour dérouler automatiquement les phases."}</p>
           <div className="voice-actors">
             {(session?.participants ?? []).slice(0, 8).map((participant) => (
               <span className={participant.alive ? undefined : "inactive-actor"} key={participant.id} title={participant.displayName}>
@@ -797,7 +917,7 @@ function PlayableRuntimePreview({
 
         <ol className="inline-play-log inline-play-log-full-width" aria-label="Journal du jeu généré">
           {recentEvents.length > 0 ? recentEvents.map((event) => (
-            <li key={event.id}>
+            <li className={event.sequence === activeEventSequence ? "generated-event-current" : undefined} key={event.id}>
               <strong>{event.speaker.displayName}</strong>
               <span>{event.text}</span>
             </li>
@@ -1004,6 +1124,7 @@ export function ForgeClient() {
   const [isStartingPromptRecording, setIsStartingPromptRecording] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
   const [voiceError, setVoiceError] = useState<ErrorResponse | null>(null);
   const [speakingPersonaId, setSpeakingPersonaId] = useState<string | null>(null);
@@ -1011,6 +1132,7 @@ export function ForgeClient() {
   const [voiceSession, setVoiceSession] = useState<VoiceGamePublicSession | null>(null);
   const [voiceSessionStatus, setVoiceSessionStatus] = useState<VoiceSessionRunStatus>("idle");
   const [voiceWindowRemaining, setVoiceWindowRemaining] = useState(0);
+  const [activeVoiceEventSequence, setActiveVoiceEventSequence] = useState<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1150,6 +1272,7 @@ export function ForgeClient() {
     }
 
     setPrompt(transcript.trim());
+    setIsEditingPrompt(false);
     setVoiceMessage("Demande vocale prête. Lance la génération quand tu veux.");
   }
 
@@ -1474,6 +1597,7 @@ export function ForgeClient() {
             return;
           }
           processedVoiceEventSequenceRef.current = Math.max(processedVoiceEventSequenceRef.current, event.sequence);
+          setActiveVoiceEventSequence(event.sequence);
 
           if (event.kind === "utterance" || event.kind === "game_ended") {
             setVoiceSessionStatus("speaking");
@@ -1541,6 +1665,7 @@ export function ForgeClient() {
       recorderRef.current.stop();
     }
     processedVoiceEventSequenceRef.current = 0;
+    setActiveVoiceEventSequence(null);
     setVoiceSession(null);
     setVoiceError(null);
     setVoiceMessage("Démarrage de la session vocale serveur...");
@@ -1599,6 +1724,7 @@ export function ForgeClient() {
     setVoiceSession(null);
     setVoiceSessionStatus("idle");
     setVoiceWindowRemaining(0);
+    setActiveVoiceEventSequence(null);
     processedVoiceEventSequenceRef.current = 0;
     setIsLoading(true);
     setResponse(null);
@@ -1668,10 +1794,19 @@ export function ForgeClient() {
     setVoiceSession(null);
     setVoiceSessionStatus("idle");
     setVoiceWindowRemaining(0);
+    setActiveVoiceEventSequence(null);
     setVoiceMessage(null);
     setVoiceError(null);
     setSpeakingPersonaId(null);
+    setIsEditingPrompt(false);
     processedVoiceEventSequenceRef.current = 0;
+  }
+
+  function fillDevPromptWithoutStt() {
+    setPrompt(devPromptWithoutStt);
+    setIsEditingPrompt(false);
+    setVoiceError(null);
+    setVoiceMessage("Mode dev: prompt rempli sans speech-to-text.");
   }
 
   if (isLoading) {
@@ -1689,6 +1824,9 @@ export function ForgeClient() {
         session={voiceSession}
         runStatus={voiceSessionStatus}
         remainingSeconds={voiceWindowRemaining}
+        voiceMessage={voiceMessage}
+        voiceError={voiceError}
+        activeEventSequence={activeVoiceEventSequence}
         onStartVoiceGame={startVoiceGameSession}
         onSpeakPersona={speakPersona}
         speakingPersonaId={speakingPersonaId}
@@ -1708,20 +1846,54 @@ export function ForgeClient() {
           <p>Dis le jeu que tu veux jouer. On le forge pendant que tu respires.</p>
         </div>
 
-        <button
-          className={`mic-button hero-mic-button${isRecording ? " listening" : ""}`}
-          type="button"
-          onClick={isRecording ? stopRecording : startRecording}
-          disabled={isStartingPromptRecording || isTranscribing || voiceSessionBusy}
-        >
-          <span className="mic-icon" aria-hidden="true" />
-          <span>{isRecording ? "Arrêter" : isStartingPromptRecording ? "Ouverture…" : isTranscribing ? "Transcription…" : prompt.trim() ? "Speak again" : "Speak"}</span>
-        </button>
+        <div className="hero-voice-actions">
+          <button
+            className={`mic-button hero-mic-button${isRecording ? " listening" : ""}`}
+            type="button"
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isStartingPromptRecording || isTranscribing || voiceSessionBusy}
+          >
+            <span className="mic-icon" aria-hidden="true" />
+            <span>{isRecording ? "Arrêter" : isStartingPromptRecording ? "Ouverture…" : isTranscribing ? "Transcription…" : prompt.trim() ? "Speak again" : "Speak"}</span>
+          </button>
+
+          {isDevelopmentMode ? (
+            <button
+              className="ghost-button dev-stt-bypass-button"
+              type="button"
+              onClick={fillDevPromptWithoutStt}
+              disabled={isPromptVoiceBusy || voiceSessionBusy}
+            >
+              Dev: sans STT
+            </button>
+          ) : null}
+        </div>
 
         {prompt.trim() ? (
           <section className="voice-transcript-panel" aria-label="Demande vocale transcrite">
-            <span>Demande vocale</span>
-            <p>{prompt}</p>
+            <div className="voice-transcript-header">
+              <span>Demande vocale</span>
+              <button
+                className="ghost-button transcript-edit-button"
+                type="button"
+                onClick={() => setIsEditingPrompt((current) => !current)}
+                disabled={isPromptVoiceBusy || voiceSessionBusy}
+                aria-label={isEditingPrompt ? "Valider la modification" : "Modifier la demande vocale"}
+                title={isEditingPrompt ? "Valider" : "Modifier"}
+              >
+                <span aria-hidden="true">{isEditingPrompt ? "✓" : "✎"}</span>
+              </button>
+            </div>
+            {isEditingPrompt ? (
+              <textarea
+                className="transcript-input"
+                aria-label="Modifier la demande vocale"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+              />
+            ) : (
+              <p>{prompt}</p>
+            )}
           </section>
         ) : null}
 
