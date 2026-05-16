@@ -60,6 +60,19 @@ export interface VoiceGameInputWindow {
   expectedActions: string[];
 }
 
+type VoiceGameIntentConfidence = "high" | "medium" | "low";
+
+interface VoiceGamePlayerIntent {
+  phaseId: string;
+  phaseName: string;
+  participantId: string;
+  participantName: string;
+  transcript: string;
+  matchedAction?: string;
+  confidence: VoiceGameIntentConfidence;
+  summary: string;
+}
+
 export interface VoiceGameEvent {
   id: string;
   sequence: number;
@@ -94,6 +107,7 @@ export interface VoiceGameSession {
   phases: VoiceGamePhase[];
   participants: VoiceGamePrivateParticipant[];
   pendingInput?: VoiceGameInputWindow;
+  lastPlayerIntent?: VoiceGamePlayerIntent;
   events: VoiceGameEvent[];
   nextSequence: number;
 }
@@ -153,7 +167,7 @@ function buildParticipants(result: ForgeResult): VoiceGamePrivateParticipant[] {
     const role = roles[index % Math.max(roles.length, 1)];
     const persona = result.package.personas[(index - humans) % Math.max(result.package.personas.length, 1)];
     const isHuman = index < humans;
-    const displayName = isHuman ? `Joueur ${index + 1}` : persona?.displayName ?? `IA ${index + 1 - humans}`;
+    const displayName = isHuman ? `Player ${index + 1}` : persona?.displayName ?? `AI ${index + 1 - humans}`;
 
     return {
       id: isHuman ? `human_${index + 1}` : `ai_${index + 1 - humans}`,
@@ -174,7 +188,7 @@ function narratorSpeaker() {
   return {
     id: "narrator",
     kind: "narrator" as const,
-    displayName: "Maître du jeu",
+    displayName: "Game master",
     speechStyle: "mysterious"
   };
 }
@@ -204,23 +218,126 @@ function currentPhase(session: VoiceGameSession) {
 function phaseMood(phase: VoiceGamePhase) {
   const normalized = `${phase.id} ${phase.name}`.toLowerCase();
   if (/night|nuit/.test(normalized)) {
-    return "sombre, secret, basse lumière";
+    return "dark, secretive, low-light";
   }
   if (/vote|accus/.test(normalized)) {
-    return "tendu, public, focalisé sur les visages";
+    return "tense public frame, faces in focus";
   }
   if (/day|jour|discussion|debate/.test(normalized)) {
-    return "social, nerveux, révélateur";
+    return "social anxious energy";
   }
-  return "cinématique, lisible, immersif";
+  return "cinematic readable immersion";
 }
 
 function narrationForPhase(phase: VoiceGamePhase) {
-  return `${phase.name}. ${phase.purpose} Vous avez ${phase.durationSec} secondes pour cette séquence.`;
+  return `${phase.name}. ${phase.purpose} You have ${phase.durationSec} seconds for this beat.`;
 }
 
 function stableTextScore(value: string) {
   return Array.from(value).reduce((score, character) => score + character.charCodeAt(0), 0);
+}
+
+function normalizeIntentText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function intentTokens(value: string) {
+  return normalizeIntentText(value)
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3);
+}
+
+const actionIntentMatchers = [
+  {
+    action: /werewolf|wolf|loup|kill|elimin|attack|victim|victime/,
+    transcript: /tue|tuer|elimine|eliminer|attaque|attaquer|victime|mange|kill|loup/,
+    score: 4
+  },
+  {
+    action: /seer|voyante|inspect|scan|reveal|vision/,
+    transcript: /inspecte|inspecter|verifie|verifier|regarde|sonder|sonde|voyante|vision|revele|reveler/,
+    score: 4
+  },
+  {
+    action: /vote|voter|ballot|accus|suspect/,
+    transcript: /vote|voter|contre|accuse|accuser|suspect|suspecte|eliminer|choisis|choisir/,
+    score: 3
+  },
+  {
+    action: /discuss|debate|talk|speak|discut|parler/,
+    transcript: /pense|crois|soupconne|suspect|argument|explique|parle|avis|indice|preuve/,
+    score: 3
+  },
+  {
+    action: /answer|repond|reply|question|quiz/,
+    transcript: /reponse|reponds|repondre|answer|question|propose|dis|donne/,
+    score: 3
+  },
+  {
+    action: /choice|choose|choisir|select|decision/,
+    transcript: /choisis|choisir|selectionne|selectionner|option|decision|prends/,
+    score: 3
+  },
+  {
+    action: /protect|guard|save|heal|witch|potion/,
+    transcript: /protege|proteger|sauve|sauver|garde|soigne|potion/,
+    score: 4
+  }
+];
+
+function readableAction(action: string) {
+  return action.replace(/[_-]+/g, " ");
+}
+
+function scoreActionAgainstTranscript(action: string, transcript: string) {
+  const normalizedAction = normalizeIntentText(action);
+  const normalizedTranscript = normalizeIntentText(transcript);
+  const tokenScore = intentTokens(action).reduce((score, token) => score + (normalizedTranscript.includes(token) ? 2 : 0), 0);
+  const matcherScore = actionIntentMatchers.reduce((score, matcher) => {
+    if (matcher.action.test(normalizedAction) && matcher.transcript.test(normalizedTranscript)) {
+      return score + matcher.score;
+    }
+    return score;
+  }, 0);
+
+  return tokenScore + matcherScore;
+}
+
+function analyzePlayerTranscript(params: {
+  phase: VoiceGamePhase;
+  participantId: string;
+  participantName: string;
+  transcript: string;
+}): VoiceGamePlayerIntent {
+  const rankedActions = params.phase.allowedActions
+    .map((action) => ({ action, score: scoreActionAgainstTranscript(action, params.transcript) }))
+    .sort((left, right) => right.score - left.score);
+  const bestAction = rankedActions.find((action) => action.score > 0);
+  const confidence: VoiceGameIntentConfidence = bestAction ? (bestAction.score >= 4 ? "high" : "medium") : "low";
+  const clippedTranscript = params.transcript.slice(0, 800);
+  const actionText = bestAction ? `detected "${readableAction(bestAction.action)}"` : "open-ended reaction captured";
+
+  return {
+    phaseId: params.phase.id,
+    phaseName: params.phase.name,
+    participantId: params.participantId,
+    participantName: params.participantName,
+    transcript: clippedTranscript,
+    matchedAction: bestAction?.action,
+    confidence,
+    summary: `${params.participantName} signaled ${actionText} during ${params.phase.name}: "${clippedTranscript.slice(0, 180)}"`
+  };
+}
+
+function playerIntentActionText(intent: VoiceGamePlayerIntent) {
+  return intent.matchedAction ? `"${readableAction(intent.matchedAction)}"` : "open-ended cue";
+}
+
+function continuationTextForIntent(intent: VoiceGamePlayerIntent, phase: VoiceGamePhase) {
+  return `Continuity seeded by ${intent.participantName}: ${playerIntentActionText(intent)} captured in ${intent.phaseName}. ${phase.name} now builds from "${intent.transcript.slice(0, 220)}".`;
 }
 
 function phaseKeywords(phase: VoiceGamePhase) {
@@ -239,44 +356,96 @@ function pickGeneratedSampleLine(participant: VoiceGamePrivateParticipant, phase
   }
 
   const keywords = phaseKeywords(phase);
-  const matchingLine = sampleLines.find((line) => {
+  let bestLine: string | undefined;
+  let bestKeywordIndex = Number.MAX_SAFE_INTEGER;
+  let bestMatchCount = 0;
+
+  for (const line of sampleLines) {
     const normalizedLine = line.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    return keywords.some((keyword) => normalizedLine.includes(keyword));
-  });
-  if (matchingLine) {
-    return matchingLine;
+    const matchingKeywordIndexes = keywords.flatMap((keyword, index) => (normalizedLine.includes(keyword) ? [index] : []));
+    if (matchingKeywordIndexes.length === 0) {
+      continue;
+    }
+
+    const earliestKeywordIndex = Math.min(...matchingKeywordIndexes);
+    if (earliestKeywordIndex < bestKeywordIndex || (earliestKeywordIndex === bestKeywordIndex && matchingKeywordIndexes.length > bestMatchCount)) {
+      bestLine = line;
+      bestKeywordIndex = earliestKeywordIndex;
+      bestMatchCount = matchingKeywordIndexes.length;
+    }
+  }
+
+  if (bestLine) {
+    return bestLine;
   }
 
   const selector = stableTextScore(`${participant.id}:${phase.id}:${round}`);
   return sampleLines[selector % sampleLines.length];
 }
 
-function personaLine(participant: VoiceGamePrivateParticipant, phase: VoiceGamePhase, round: number) {
+function personaLine(participant: VoiceGamePrivateParticipant, phase: VoiceGamePhase, round: number, playerIntent?: VoiceGamePlayerIntent) {
+  if (playerIntent) {
+    return `${participant.displayName} reacts to ${playerIntent.participantName}: "${playerIntent.transcript.slice(0, 160)}". ${participant.displayName} retunes their beat for ${phase.name} around this ${playerIntentActionText(playerIntent)}.`;
+  }
+
   const generatedSample = pickGeneratedSampleLine(participant, phase, round);
   if (generatedSample) {
     return generatedSample;
   }
 
-  const styleHint = participant.speechStyle ? `Sur un ton ${participant.speechStyle}, ` : "";
+  const styleHint = participant.speechStyle ? `Tone: ${participant.speechStyle}; ` : "";
 
   const normalized = `${phase.id} ${phase.name}`.toLowerCase();
   if (/night|nuit/.test(normalized)) {
-    return `${styleHint}${participant.displayName} observe la scène en silence pendant ${phase.name}.`;
+    return `${styleHint}${participant.displayName} watches the tableau in silence through ${phase.name}.`;
   }
 
   if (/vote|accus/.test(normalized)) {
-    return `${styleHint}${participant.displayName} hésite, puis compare les arguments avant de répondre.`;
+    return `${styleHint}${participant.displayName} hesitates, weighs arguments, then weighs in.`;
   }
 
-  return `${styleHint}${participant.displayName} réagit à la phase ${phase.name}: ${phase.purpose}`;
+  return `${styleHint}${participant.displayName} threads ${phase.name} with intent: ${phase.purpose}`;
+}
+
+function normalizedPhaseIntent(phase: VoiceGamePhase) {
+  return `${phase.id} ${phase.name} ${phase.purpose} ${phase.allowedActions.join(" ")}`
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function generatedSilentPlayerResponse(phase: VoiceGamePhase) {
+  const normalized = normalizedPhaseIntent(phase);
+
+  if (/night|nuit|secret|werewolf|wolf|loup|seer|voyante|inspect/.test(normalized)) {
+    return "Doing my covert action quietly without revealing who I really am.";
+  }
+
+  if (/vote|voter|ballot/.test(normalized)) {
+    return "I'm voting against whoever feels least consistent with the table—I own this call.";
+  }
+
+  if (/accus|suspect|discuss|debate|talk|speak|discut|parler/.test(normalized)) {
+    return "Vague replies feel off; someone needs to explain themselves clearly.";
+  }
+
+  if (/answer|repond|reply|question|quiz/.test(normalized)) {
+    return "Locking my answer—short and confident.";
+  }
+
+  if (/choice|choose|choisir|select|decision/.test(normalized)) {
+    return "Choosing the lane that favors my faction, then scanning for how the crowd reacts.";
+  }
+
+  return `Making a deliberate move during ${phase.name} so momentum keeps tipping forward.`;
 }
 
 function addPrivateRoleEvents(session: VoiceGameSession) {
   for (const participant of session.participants) {
     pushEvent(session, {
       kind: "state_updated",
-      speaker: { id: "system", kind: "system", displayName: "Distribution secrète" },
-      text: `${participant.displayName}, ton rôle secret est ${participant.roleName}. Objectif: ${participant.teamOrSide}.`,
+      speaker: { id: "system", kind: "system", displayName: "Secret deal-out" },
+      text: `${participant.displayName}, your hidden role is ${participant.roleName}. Objective: ${participant.teamOrSide}.`,
       visibility: "private",
       recipientParticipantId: participant.id
     });
@@ -285,12 +454,14 @@ function addPrivateRoleEvents(session: VoiceGameSession) {
 
 function addPhaseEvents(session: VoiceGameSession) {
   const phase = currentPhase(session);
+  const carriedPlayerIntent = session.lastPlayerIntent;
   session.pendingInput = undefined;
+  session.lastPlayerIntent = undefined;
 
   pushEvent(session, {
     kind: "phase_started",
     phaseId: phase.id,
-    speaker: { id: "system", kind: "system", displayName: "Système" },
+    speaker: { id: "system", kind: "system", displayName: "System" },
     text: `Phase ${session.activePhaseIndex + 1}/${session.phases.length}: ${phase.name}`,
     visibility: "public",
     durationSec: phase.durationSec,
@@ -306,6 +477,17 @@ function addPhaseEvents(session: VoiceGameSession) {
     visualCue: { scene: phase.id, mood: phaseMood(phase), motion: "slow_push" }
   });
 
+  if (carriedPlayerIntent) {
+    pushEvent(session, {
+      kind: "state_updated",
+      phaseId: phase.id,
+      speaker: { id: "system", kind: "system", displayName: "Voice inference" },
+      text: continuationTextForIntent(carriedPlayerIntent, phase),
+      visibility: "public",
+      visualCue: { scene: phase.id, mood: "plot branch shaped by player vocal input", motion: "branch_reveal" }
+    });
+  }
+
   const aiSpeakers = session.participants.filter((participant) => participant.kind === "ai" && participant.alive).slice(0, 2);
   for (const participant of aiSpeakers) {
     pushEvent(session, {
@@ -318,7 +500,7 @@ function addPhaseEvents(session: VoiceGameSession) {
         personaId: participant.personaId,
         speechStyle: participant.speechStyle ?? "expressive"
       },
-      text: personaLine(participant, phase, session.round),
+      text: personaLine(participant, phase, session.round, carriedPlayerIntent),
       visibility: "public",
       visualCue: { scene: phase.id, mood: phaseMood(phase), motion: "character_reaction" }
     });
@@ -327,7 +509,7 @@ function addPhaseEvents(session: VoiceGameSession) {
   pushEvent(session, {
     kind: "visual_cue",
     phaseId: phase.id,
-    speaker: { id: "visual_director", kind: "system", displayName: "Direction vidéo" },
+    speaker: { id: "visual_director", kind: "system", displayName: "Video director" },
     text: `Storyboard: ${phase.name} — ${phaseMood(phase)}.`,
     visibility: "public",
     visualCue: { scene: phase.id, mood: phaseMood(phase), motion: "storyboard_frame" }
@@ -338,18 +520,18 @@ function addPhaseEvents(session: VoiceGameSession) {
       id: `${session.sessionId}:${phase.id}:input:${session.round}`,
       phaseId: phase.id,
       durationSec: Math.min(MAX_VOICE_INPUT_DURATION_SEC, phase.durationSec),
-      prompt: `Parlez maintenant pour ${phase.name}. Actions attendues: ${phase.allowedActions.join(", ") || "réaction libre"}.`,
+      prompt: `Speak now for ${phase.name}. Expected actions: ${phase.allowedActions.join(", ") || "open reaction"}.`,
       expectedActions: phase.allowedActions
     };
     session.pendingInput = inputWindow;
     pushEvent(session, {
       kind: "input_window",
       phaseId: phase.id,
-      speaker: { id: "system", kind: "system", displayName: "Fenêtre vocale" },
+      speaker: { id: "system", kind: "system", displayName: "Voice window" },
       text: inputWindow.prompt,
       visibility: "public",
       durationSec: inputWindow.durationSec,
-      visualCue: { scene: phase.id, mood: "micro ouvert, tension de table", motion: "recording_pulse" }
+      visualCue: { scene: phase.id, mood: "mic hot, tabletop tension spike", motion: "recording_pulse" }
     });
   }
 }
@@ -373,7 +555,7 @@ export function createVoiceGameSession(params: { sessionId: string; result: Forg
   pushEvent(session, {
     kind: "session_started",
     speaker: { id: "system", kind: "system", displayName: "GameForge" },
-    text: `Session lancée pour ${session.title}. Le moteur vocal déroule les phases automatiquement.`,
+    text: `Session underway for ${session.title}. Voice engine advancing phases automatically.`,
     visibility: "public"
   });
   addPrivateRoleEvents(session);
@@ -408,39 +590,63 @@ export function advanceVoiceGameSession(session: VoiceGameSession, input: Advanc
   const transcript = input.transcript?.trim();
   if (transcript && session.pendingInput) {
     const participant = findParticipant(session, input.participantId);
+    const participantId = participant?.id ?? "human_1";
+    const participantName = participant?.displayName ?? "Player";
+    const playerIntent = analyzePlayerTranscript({
+      phase: previousPhase,
+      participantId,
+      participantName,
+      transcript
+    });
+    session.lastPlayerIntent = playerIntent;
     pushEvent(session, {
       kind: "transcript_received",
       phaseId: previousPhase.id,
       speaker: {
-        id: participant?.id ?? "human_1",
+        id: participantId,
         kind: "player",
-        displayName: participant?.displayName ?? "Joueur"
+        displayName: participantName
       },
-      text: transcript.slice(0, 800),
+      text: playerIntent.transcript,
       visibility: "public",
-      visualCue: { scene: previousPhase.id, mood: "voix joueur capturée", motion: "subtitle_pop" }
+      visualCue: { scene: previousPhase.id, mood: "player vocal captured live", motion: "subtitle_pop" }
     });
     pushEvent(session, {
       kind: "state_updated",
       phaseId: previousPhase.id,
-      speaker: { id: "system", kind: "system", displayName: "Moteur" },
-      text: `Input vocal accepté pour ${previousPhase.name}. Le moteur garde l'état et prépare la suite.`,
+      speaker: { id: "system", kind: "system", displayName: "Voice inference" },
+      text: `Voice cue: ${playerIntent.summary}. This intent primes the incoming phase.`,
       visibility: "public"
     });
   } else if (transcript) {
     pushEvent(session, {
       kind: "state_updated",
       phaseId: previousPhase.id,
-      speaker: { id: "system", kind: "system", displayName: "Moteur" },
-      text: `Transcript ignoré pour ${previousPhase.name}: aucune fenêtre vocale n'était ouverte.`,
+      speaker: { id: "system", kind: "system", displayName: "Engine" },
+      text: `Transcript discarded for ${previousPhase.name}: no voice window was open.`,
       visibility: "public"
     });
   } else if (session.pendingInput) {
+    const participant = findParticipant(session, input.participantId);
+    const displayName = participant?.displayName ?? "Player";
+    pushEvent(session, {
+      kind: "utterance",
+      phaseId: previousPhase.id,
+      speaker: {
+        id: participant?.id ?? "human_1",
+        kind: "player",
+        displayName,
+        speechStyle: participant?.speechStyle ?? "spontaneous and natural"
+      },
+      text: generatedSilentPlayerResponse(previousPhase).slice(0, 800),
+      visibility: "public",
+      visualCue: { scene: previousPhase.id, mood: "fallback player reaction synthesized", motion: "subtitle_pop" }
+    });
     pushEvent(session, {
       kind: "state_updated",
       phaseId: previousPhase.id,
-      speaker: { id: "system", kind: "system", displayName: "Moteur" },
-      text: `Aucun input vocal reçu pour ${previousPhase.name}; application du comportement par défaut.`,
+      speaker: { id: "system", kind: "system", displayName: "Engine" },
+      text: `No live voice received for ${previousPhase.name}; auto line filled for ${displayName}.`,
       visibility: "public"
     });
   }
@@ -448,28 +654,36 @@ export function advanceVoiceGameSession(session: VoiceGameSession, input: Advanc
   session.pendingInput = undefined;
   const nextIndex = nextPhaseIndex(session, previousPhase);
   if (nextIndex < 0) {
+    const finalIntent = session.lastPlayerIntent;
+    session.lastPlayerIntent = undefined;
     session.status = "ended";
     pushEvent(session, {
       kind: "game_ended",
       phaseId: previousPhase.id,
       speaker: narratorSpeaker(),
-      text: `La séquence de démonstration se termine. ${session.title} peut être rejoué avec le même journal vocal.`,
+      text: finalIntent
+        ? `Demo path closes after honoring ${finalIntent.summary}. Replay ${session.title} with the same vocal log whenever you want.`
+        : `Demo path wraps. Replay ${session.title} with the same vocal log whenever you want.`,
       visibility: "public",
-      visualCue: { scene: "ending", mood: "résolution cinématique", motion: "fade_out" }
+      visualCue: { scene: "ending", mood: "cinematic resolution pass", motion: "fade_out" }
     });
     return session;
   }
 
   if (nextIndex <= session.activePhaseIndex) {
     if (session.round >= MAX_SESSION_ROUNDS) {
+      const finalIntent = session.lastPlayerIntent;
+      session.lastPlayerIntent = undefined;
       session.status = "ended";
       pushEvent(session, {
         kind: "game_ended",
         phaseId: previousPhase.id,
         speaker: narratorSpeaker(),
-        text: `La session atteint sa limite de ${MAX_SESSION_ROUNDS} rounds et se termine proprement.`,
+        text: finalIntent
+          ? `Hard stop at ${MAX_SESSION_ROUNDS} rounds—last spoken intent was ${finalIntent.summary}.`
+          : `Hit the ${MAX_SESSION_ROUNDS}-round safety cap cleanly.`,
         visibility: "public",
-        visualCue: { scene: "ending", mood: "limite de session atteinte", motion: "fade_out" }
+        visualCue: { scene: "ending", mood: "session safeguard ceiling", motion: "fade_out" }
       });
       return session;
     }

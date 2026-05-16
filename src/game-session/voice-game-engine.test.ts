@@ -14,11 +14,11 @@ describe("voice-game-engine", () => {
 
     expect(publicSession.events.every((event) => event.visibility === "public")).toBe(true);
     expect(publicJson).not.toContain("roleId");
-    expect(publicJson).not.toContain("ton rôle secret");
-    expect(publicJson).not.toContain("ton role secret");
+    expect(publicJson).not.toContain("teamOrSide");
+    expect(publicJson).not.toContain("your hidden role is");
     expect(publicSession.ownPlayer).toMatchObject({
       participantId: "human_1",
-      displayName: "Joueur 1",
+      displayName: "Player 1",
       roleName: expect.any(String)
     });
   });
@@ -42,7 +42,7 @@ describe("voice-game-engine", () => {
     const publicSession = toPublicVoiceGameSession(session);
 
     expect(publicSession.events.some((event) => event.kind === "transcript_received")).toBe(false);
-    expect(publicSession.events.some((event) => event.text.includes("Transcript ignoré"))).toBe(true);
+    expect(publicSession.events.some((event) => event.text.includes("Transcript discarded"))).toBe(true);
   });
 
   it("attributes transcripts to the requested human participant during input windows", () => {
@@ -56,6 +56,46 @@ describe("voice-game-engine", () => {
     expect(transcriptEvent?.text).toBe("Je protège le village.");
   });
 
+  it("analyzes spoken input and reuses it to build the next phase", () => {
+    const session = createVoiceGameSession({ sessionId: "session-intent", result: fixture() });
+
+    advanceVoiceGameSession(session);
+    advanceVoiceGameSession(session, { participantId: "human_1", transcript: "J'inspecte Mireille parce qu'elle hésite." });
+    const publicSession = toPublicVoiceGameSession(session);
+    const analysisEvent = publicSession.events.find(
+      (event) => event.kind === "state_updated" && event.phaseId === "night" && event.text.includes("Voice cue")
+    );
+    const continuationEvent = publicSession.events.find(
+      (event) => event.kind === "state_updated" && event.phaseId === "day" && event.text.includes("Continuity seeded")
+    );
+    const personaReply = publicSession.events.find(
+      (event) => event.kind === "utterance" && event.phaseId === "day" && event.speaker.kind === "persona"
+    );
+
+    expect(publicSession.activePhase.id).toBe("day");
+    expect(analysisEvent?.text).toContain("seer inspect");
+    expect(continuationEvent?.text).toContain("J'inspecte Mireille");
+    expect(continuationEvent?.text).toContain("seer inspect");
+    expect(personaReply?.text).toContain("Player 1");
+    expect(personaReply?.text).toContain("J'inspecte Mireille");
+    expect(session.lastPlayerIntent).toBeUndefined();
+  });
+
+  it("generates a player response when an input window times out without speech", () => {
+    const session = createVoiceGameSession({ sessionId: "session-timeout", result: fixture() });
+
+    advanceVoiceGameSession(session);
+    advanceVoiceGameSession(session, { participantId: "human_2" });
+    const publicSession = toPublicVoiceGameSession(session);
+    const generatedResponse = publicSession.events.find(
+      (event) => event.kind === "utterance" && event.phaseId === "night" && event.speaker.kind === "player"
+    );
+
+    expect(generatedResponse?.speaker.id).toBe("human_2");
+    expect(generatedResponse?.text).toBe("Doing my covert action quietly without revealing who I really am.");
+    expect(publicSession.events.some((event) => event.text.includes("auto line filled for Player 2"))).toBe(true);
+  });
+
   it("does not assign roles whose count is zero", () => {
     const result = fixture();
     result.gameSpec.rolesOrActors = [
@@ -64,8 +104,8 @@ describe("voice-game-engine", () => {
         name: "Fantôme",
         teamOrSide: "spectators",
         count: 0,
-        publicDescription: "Un rôle désactivé.",
-        privateGoal: "Ne jamais être distribué.",
+        publicDescription: "Disabled role archetype.",
+        privateGoal: "Never deal this card.",
         abilities: []
       },
       ...result.gameSpec.rolesOrActors
@@ -80,12 +120,12 @@ describe("voice-game-engine", () => {
     const session = createVoiceGameSession({ sessionId: "session-ended", result: fixture() });
 
     advanceVoiceGameSession(session);
-    advanceVoiceGameSession(session, { transcript: "La nuit est terminée." });
-    advanceVoiceGameSession(session, { transcript: "Je vote maintenant." });
+    advanceVoiceGameSession(session, { transcript: "Night is wrapping up peacefully." });
+    advanceVoiceGameSession(session, { transcript: "I vote tonight." });
     expect(session.status).toBe("ended");
 
     const eventCount = session.events.length;
-    advanceVoiceGameSession(session, { transcript: "Encore une phrase." });
+    advanceVoiceGameSession(session, { transcript: "One more confession." });
 
     expect(session.events).toHaveLength(eventCount);
   });
@@ -103,35 +143,35 @@ describe("voice-game-engine", () => {
     result.gameSpec.rolesOrActors = [
       {
         id: "host",
-        name: "Animateur",
+        name: "Host",
         teamOrSide: "show",
         count: 1,
-        publicDescription: "Anime la manche.",
-        privateGoal: "Maintenir le rythme.",
-        abilities: ["Poser une question"]
+        publicDescription: "Keeps the round ticking.",
+        privateGoal: "Maintain tempo between beats.",
+        abilities: ["Ask a scripted question."]
       },
       {
         id: "contestant",
-        name: "Candidate",
+        name: "Contestant",
         teamOrSide: "players",
         count: 3,
-        publicDescription: "Répond aux questions.",
-        privateGoal: "Marquer des points.",
-        abilities: ["Répondre"]
+        publicDescription: "Answers rapid-fire trivia.",
+        privateGoal: "Score every possible point.",
+        abilities: ["Buzz in with clarity."]
       }
     ];
     result.gameSpec.phases = [
-      { id: "question", name: "Question rapide", purpose: "Lire une question de culture générale.", allowedActions: ["answer"], next: "score" },
-      { id: "score", name: "Score", purpose: "Afficher les points.", allowedActions: ["score_round"], next: "" }
+      { id: "question", name: "Quick question", purpose: "Read a general-knowledge teaser.", allowedActions: ["answer"], next: "score" },
+      { id: "score", name: "Scoreboard", purpose: "Update the leaderboard.", allowedActions: ["score_round"], next: "" }
     ];
     result.package.personas = [
       {
         id: "ai_host",
         displayName: "Nova",
-        speechStyle: "énergique et clair",
-        publicBackstory: "Animatrice de quiz futuriste.",
-        behaviorRules: ["Reste concise."],
-        sampleLines: ["Top chrono, donne ta meilleure réponse !"]
+        speechStyle: "bright and kinetic",
+        publicBackstory: "Futuristic trivia host hologram.",
+        behaviorRules: ["Stay concise.", "Celebrate near-misses."],
+        sampleLines: ["Buzz in—five seconds starts now."]
       }
     ];
 
@@ -141,29 +181,28 @@ describe("voice-game-engine", () => {
     const publicJson = JSON.stringify(publicSession);
 
     expect(personaEvent?.speaker.personaId).toBe("ai_host");
-    expect(personaEvent?.speaker.speechStyle).toBe("énergique et clair");
-    expect(personaEvent?.text).toContain("Top chrono, donne ta meilleure réponse !");
-    expect(publicJson).toContain("Top chrono, donne ta meilleure réponse !");
+    expect(personaEvent?.speaker.speechStyle).toBe("bright and kinetic");
+    expect(personaEvent?.text).toContain("Buzz in—five seconds starts now.");
+    expect(publicJson).toContain("Buzz in—five seconds starts now.");
     expect(publicJson).not.toContain("village");
-    expect(publicJson).not.toContain("cache forcément");
   });
 
   it("selects generated persona sample lines by phase instead of repeating the first line", () => {
     const result = fixture();
     result.gameSpec.phases = [
-      { id: "question", name: "Question rapide", purpose: "Poser une question.", allowedActions: ["answer"], next: "score" },
-      { id: "score", name: "Score final", purpose: "Afficher le score.", allowedActions: ["score_round"], next: "" }
+      { id: "question", name: "Lightning clue", purpose: "Drop a teaser question.", allowedActions: ["answer"], next: "score" },
+      { id: "score", name: "Final tally", purpose: "Project the leaderboard.", allowedActions: ["score_round"], next: "" }
     ];
     result.package.personas = [
       {
         id: "ai_host",
         displayName: "Nova",
-        speechStyle: "énergique et clair",
-        publicBackstory: "Animatrice de quiz futuriste.",
-        behaviorRules: ["Reste concise."],
+        speechStyle: "bright kinetic host",
+        publicBackstory: "Futurist quiz MC.",
+        behaviorRules: ["Keep cadence taut."],
         sampleLines: [
-          "[urgent] Question éclair: donne ta réponse maintenant !",
-          "[warm] Score validé, le rythme reste haut."
+          "[urgent] Lightning clue—lock your answer!",
+          "[warm] Leaderboard climbs while momentum stays electric."
         ]
       }
     ];
@@ -175,14 +214,14 @@ describe("voice-game-engine", () => {
       .filter((event) => event.kind === "utterance" && event.speaker.kind === "persona")
       .map((event) => event.text);
 
-    expect(firstPersonaLine).toBe("[urgent] Question éclair: donne ta réponse maintenant !");
-    expect(personaLines).toContain("[warm] Score validé, le rythme reste haut.");
+    expect(firstPersonaLine).toBe("[urgent] Lightning clue—lock your answer!");
+    expect(personaLines).toContain("[warm] Leaderboard climbs while momentum stays electric.");
   });
 
   it("ends looping phase graphs before unbounded event growth", () => {
     const result = fixture();
     result.gameSpec.phases = [
-      { id: "loop", name: "Boucle courte", purpose: "Tester la limite de session.", allowedActions: ["wait"], next: "loop" }
+      { id: "loop", name: "Tight loop", purpose: "Exercise session caps.", allowedActions: ["wait"], next: "loop" }
     ];
 
     const session = createVoiceGameSession({ sessionId: "session-loop", result });
