@@ -159,22 +159,72 @@ function expandRoles(result: ForgeResult) {
   return roles.length > 0 ? roles : result.gameSpec.rolesOrActors;
 }
 
+function identityTokens(value: string | undefined) {
+  return normalizeIntentText(value ?? "")
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 4);
+}
+
+function hiddenRoleLeakTokens(result: ForgeResult) {
+  return new Set(result.gameSpec.rolesOrActors.flatMap((role) => [
+    ...identityTokens(role.id),
+    ...identityTokens(role.name)
+  ]));
+}
+
+function isHiddenRoleGame(result: ForgeResult) {
+  return result.gameSpec.mechanics.includes("hidden_roles") || result.intake.primaryMechanics.includes("hidden_roles");
+}
+
+function sanitizePublicHiddenRoleIdentity(params: {
+  value: string | undefined;
+  fallback: string;
+  hiddenRoleGame: boolean;
+  roleLeakTokens: Set<string>;
+}) {
+  const trimmedValue = params.value?.trim();
+  if (!trimmedValue) {
+    return params.fallback;
+  }
+
+  if (!params.hiddenRoleGame) {
+    return trimmedValue;
+  }
+
+  const leaksHiddenRole = identityTokens(trimmedValue).some((token) => params.roleLeakTokens.has(token));
+  return leaksHiddenRole ? params.fallback : trimmedValue;
+}
+
 function buildParticipants(result: ForgeResult): VoiceGamePrivateParticipant[] {
   const roles = expandRoles(result);
   const total = result.gameSpec.players.total;
   const humans = result.gameSpec.players.humans;
+  const hiddenRoleGame = isHiddenRoleGame(result);
+  const roleLeakTokens = hiddenRoleLeakTokens(result);
 
   return Array.from({ length: total }, (_, index) => {
     const role = roles[index % Math.max(roles.length, 1)];
     const persona = result.package.personas[(index - humans) % Math.max(result.package.personas.length, 1)];
     const isHuman = index < humans;
-    const displayName = isHuman ? `Player ${index + 1}` : persona?.displayName ?? `AI ${index + 1 - humans}`;
+    const aiOrdinal = index + 1 - humans;
+    const displayName = isHuman ? `Player ${index + 1}` : sanitizePublicHiddenRoleIdentity({
+      value: persona?.displayName,
+      fallback: `AI ${aiOrdinal}`,
+      hiddenRoleGame,
+      roleLeakTokens
+    });
+    const personaId = isHuman ? undefined : sanitizePublicHiddenRoleIdentity({
+      value: persona?.id,
+      fallback: `ai_${aiOrdinal}`,
+      hiddenRoleGame,
+      roleLeakTokens
+    });
 
     return {
       id: isHuman ? `human_${index + 1}` : `ai_${index + 1 - humans}`,
       displayName,
       kind: isHuman ? "human" : "ai",
-      personaId: isHuman ? undefined : persona?.id,
+      personaId,
       alive: true,
       roleId: role?.id ?? "participant",
       roleName: role?.name ?? "Participant",

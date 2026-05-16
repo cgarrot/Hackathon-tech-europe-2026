@@ -23,6 +23,43 @@ describe("voice-game-engine", () => {
     });
   });
 
+  it("sanitizes public AI identities that include hidden role labels", () => {
+    const result = fixture();
+    result.gameSpec.players = { total: 4, humans: 2, ai: 2 };
+    result.package.personas = [
+      {
+        id: "ai_werewolf_voice",
+        displayName: "AI 1 · Werewolf",
+        speechStyle: "guarded",
+        publicBackstory: "A quiet villager.",
+        behaviorRules: ["Never reveal hidden role metadata."],
+        sampleLines: ["I am watching the table carefully."]
+      },
+      {
+        id: "seer_persona",
+        displayName: "AI 2 · Seer",
+        speechStyle: "careful",
+        publicBackstory: "A wary villager.",
+        behaviorRules: ["Stay indirect."],
+        sampleLines: ["Someone changed their story."]
+      }
+    ];
+
+    const session = createVoiceGameSession({ sessionId: "session-sanitize-ai", result });
+    const publicSession = toPublicVoiceGameSession(session);
+    const publicAiParticipants = publicSession.participants.filter((participant) => participant.kind === "ai");
+    const publicSpeakerJson = JSON.stringify(publicSession.events.map((event) => event.speaker));
+
+    expect(publicAiParticipants.map((participant) => participant.displayName)).toEqual(["AI 1", "AI 2"]);
+    expect(publicAiParticipants.map((participant) => participant.personaId)).toEqual(["ai_1", "ai_2"]);
+    expect(JSON.stringify(publicAiParticipants)).not.toContain("Werewolf");
+    expect(JSON.stringify(publicAiParticipants)).not.toContain("Seer");
+    expect(JSON.stringify(publicAiParticipants)).not.toContain("ai_werewolf_voice");
+    expect(JSON.stringify(publicAiParticipants)).not.toContain("seer_persona");
+    expect(publicSpeakerJson).not.toContain("Werewolf");
+    expect(publicSpeakerJson).not.toContain("Seer");
+  });
+
   it("opens voice input windows for werewolf night actions", () => {
     const session = createVoiceGameSession({ sessionId: "session-night", result: fixture() });
 
