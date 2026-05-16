@@ -39,6 +39,8 @@ OPENAI_MODEL=gpt-4.1-mini
 
 The app runtime intentionally has no mock provider and no silent mock fallback. If a real provider is missing or fails, `/api/forge` returns a clear error instead of generating fake output.
 
+The UI can force the provider per compilation with the `Provider LLM` selector (`Auto`, `Ollama Cloud`, or `OpenAI`). `Auto` keeps using `LLM_PROVIDER`; explicit choices still use only server-side credentials from `.env.local` and never send API keys to the browser.
+
 `/api/forge` also includes basic server-side cost guards for real LLM calls: per-client rate limiting and a global concurrent compilation cap. Tune them with `GAMEFORGE_RATE_LIMIT_WINDOW_MS`, `GAMEFORGE_RATE_LIMIT_MAX_REQUESTS`, and `GAMEFORGE_MAX_CONCURRENT_REQUESTS` before a public demo.
 
 Voice routes use the same server-only pattern. Set `GRADIUM_API_KEY` plus a voice id such as `GRADIUM_FR_VOICE_ID` or `GRADIUM_DEFAULT_VOICE_ID`; `.env.example` uses Gradium's documented quickstart voice id (`YTpq7expH9539ERJ`) as a non-secret default. The browser never sees the key. Gradium REST uses `POST https://api.gradium.ai/api/post/speech/asr` for raw audio transcription and `POST https://api.gradium.ai/api/post/speech/tts` for streamed synthesis with `only_audio: true`. Tune voice guards with `GAMEFORGE_VOICE_RATE_LIMIT_WINDOW_MS`, `GAMEFORGE_VOICE_RATE_LIMIT_MAX_REQUESTS`, and `GAMEFORGE_MAX_CONCURRENT_VOICE_REQUESTS`.
