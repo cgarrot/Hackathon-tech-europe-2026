@@ -125,14 +125,14 @@ export const VOICE_PROFILE_PRESETS: Record<VoiceProfileId, VoiceProfilePreset> =
     label: "FR feminine warm",
     language: "fr",
     voiceIdEnv: "GRADIUM_FR_VOICE_ID",
-    direction: "voix française chaleureuse, expressive, claire"
+    direction: "warm French female voice, expressive and clear"
   },
   fr_masculine_warm: {
     id: "fr_masculine_warm",
     label: "FR masculine warm",
     language: "fr",
     voiceIdEnv: "GRADIUM_FR_VOICE_ID",
-    direction: "voix française posée, chaude, lisible"
+    direction: "warm French male voice, steady and articulate"
   },
   en_feminine_warm: {
     id: "en_feminine_warm",
@@ -163,7 +163,7 @@ const STYLE_KEYWORDS: Array<{ style: SpeechStyleId; keywords: string[] }> = [
 ];
 
 export function normalizeVoiceLanguage(language: string | undefined): "fr" | "en" {
-  return language?.toLowerCase().startsWith("en") ? "en" : "fr";
+  return language?.toLowerCase().startsWith("fr") ? "fr" : "en";
 }
 
 export function inferSpeechStyleId(value: string): SpeechStyleId {

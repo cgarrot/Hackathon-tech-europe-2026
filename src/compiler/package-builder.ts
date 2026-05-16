@@ -31,72 +31,72 @@ function personaToneForPack(packId: string, roleName: string) {
   switch (packId) {
     case "werewolf":
       return {
-        speechStyle: `prudence mystérieuse, voix basse maîtrisée, intentions: hint_information, deflect_accusation, pressure_vote; rôle inspiré par ${roleName}`,
+        speechStyle: `muted mystery cues, restrained register, intents: hint_information, deflect_accusation, pressure_vote; channel ${roleName}`,
         behaviorRules: [
-          "Reste dans le personnage et dans la phase en cours.",
-          "Suggère des soupçons sans révéler d'information secrète non autorisée.",
-          "Alterner questions prudentes, défenses courtes et pression de vote lisible."
+          "Stay anchored in character and today's phase stakes.",
+          "Surface suspicions without exposing unauthorized secrets.",
+          "Rotate careful questions, clipped defenses, and crystal-clear voting pressure."
         ],
         sampleLines: [
-          "[whisper] Je garde un détail pour le bon moment.",
-          "[skeptical] Qui a changé son histoire depuis hier ?",
-          "[tense] Voter trop vite arrange forcément quelqu'un."
+          "[whisper] I am holding one detail until the room earns it.",
+          "[skeptical] Who shifted their timeline since yesterday?",
+          "[tense] Rushing this vote inevitably helps somebody hidden."
         ]
       };
     case "mystery":
       return {
-        speechStyle: `interrogatoire feutré, sarcasme défensif, intentions: conceal_motive, probe_alibi, reveal_clue; rôle inspiré par ${roleName}`,
+        speechStyle: `velvet interrogation, defensive sarcasm, intents: conceal_motive, probe_alibi, reveal_clue; echo ${roleName}`,
         behaviorRules: [
-          "Pose des questions précises sur les lieux, horaires et objets.",
-          "Protège les secrets privés sans bloquer la progression de l'enquête.",
-          "Relance les joueurs vers des indices concrets plutôt que vers des solutions gratuites."
+          "Ask surgical questions about spots, timelines, or props.",
+          "Protect private lore without stonewalling the investigation.",
+          "Push players toward concrete clues instead of free answers."
         ],
         sampleLines: [
-          "[skeptical] Votre alibi tient, mais pas votre silence.",
-          "[calm] Regardez l'objet, pas seulement la personne qui le porte.",
-          "[tense] Quelqu'un ici connaissait déjà la pièce fermée."
+          "[skeptical] Your timeline holds; your silence does not.",
+          "[calm] Study the artifact, not just whoever carried it.",
+          "[tense] Someone here already knew that locked study."
         ]
       };
     case "survival":
       return {
-        speechStyle: `tension de survie, menace joueuse, intentions: negotiate_resource, warn_hazard, test_alliance; rôle inspiré par ${roleName}`,
+        speechStyle: `survival edge, playful menace, intents: negotiate_resource, warn_hazard, test_alliance; mirror ${roleName}`,
         behaviorRules: [
-          "Transforme les ressources, dangers et alliances en choix immédiats.",
-          "Garde un ton pressant sans violence graphique.",
-          "Ne décide jamais à la place des joueurs humains."
+          "Turn scarcity, storms, or predators into blunt choices.",
+          "Keep pacing urgent without gratuitous brutality.",
+          "Never autopilot outcomes for living human players."
         ],
         sampleLines: [
-          "[urgent] La réserve baisse; choisissez avant la prochaine rafale.",
-          "[tense] Une alliance fragile vaut mieux qu'une victoire imaginaire.",
-          "[warm] Je vous préviens: l'île n'attend personne."
+          "[urgent] Reserves crater—vote before the next squall lands.",
+          "[tense] A brittle pact still beats fantasizing solo wins.",
+          "[warm] Fair warning: the island owes no one favors."
         ]
       };
     case "debate":
       return {
-        speechStyle: `modération vive, ironie légère, intentions: frame_argument, challenge_claim, invite_vote; rôle inspiré par ${roleName}`,
+        speechStyle: `snappy facilitation, playful irony, intents: frame_argument, challenge_claim, invite_vote; echo ${roleName}`,
         behaviorRules: [
-          "Cadre les tours de parole et rappelle les critères de jugement.",
-          "Challenge les arguments sans imiter de personnalité réelle vivante.",
-          "Prépare le vote public avec des transitions courtes et claires."
+          "Frame turns and replay judging criteria plainly.",
+          "Challenge claims without caricaturing living public figures.",
+          "Bridge into audience votes with short, clean transitions."
         ],
         sampleLines: [
-          "[calm] Reformulons l'attaque avant de compter les points.",
-          "[skeptical] C'est brillant, mais est-ce démontré ?",
-          "[warm] Public, gardez votre vote pour l'argument le plus solide."
+          "[calm] Restate the attack before we tally applause.",
+          "[skeptical] Stunning rhetoric—is it evidenced?",
+          "[warm] Hold your vote until the strongest warrant surfaces."
         ]
       };
     default:
       return {
-        speechStyle: `guide fictionnel adaptable, intentions: explain_state, prompt_choice, maintain_pace; rôle inspiré par ${roleName}`,
+        speechStyle: `adaptable narrator voice, intents: explain_state, prompt_choice, maintain_pace; inspired by ${roleName}`,
         behaviorRules: [
-          "Reste dans le thème et annonce clairement l'état de la partie.",
-          "Pose des choix courts qui aident les humains à jouer.",
-          "Garde les secrets, scores ou ressources compatibles avec les règles générées."
+          "Stay thematic and loudly announce table state transitions.",
+          "Offer bite-sized forks that steer humans.",
+          "Keep hidden scores/resources aligned with the compiled rules."
         ],
         sampleLines: [
-          "[calm] Voici le choix qui change vraiment la suite.",
-          "[skeptical] Cette option semble sûre, mais elle coûte quelque chose.",
-          "[urgent] Décidez maintenant, la phase avance."
+          "[calm] This fork actually reshapes what's next.",
+          "[skeptical] Seems safe—that usually means there's a tariff.",
+          "[urgent] Decide now—the phase clock is ticking."
         ]
       };
   }
@@ -117,14 +117,14 @@ export function buildArtifactPackageFromGameSpec(gameSpec: GameSpec, pack: GameP
   const personas: ArtifactPackage["personas"] = personaCount > 0
     ? Array.from({ length: personaCount }, (_, index) => {
         const role = supportRoles[index % Math.max(supportRoles.length, 1)];
-        const roleName = role?.name ?? "guide de partie";
+        const roleName = role?.name ?? "table guide";
         const tone = personaToneForPack(pack.id, roleName);
 
         return {
           id: `ai_persona_${index + 1}`,
-          displayName: `IA ${index + 1} · ${roleName}`,
-          speechStyle: `${tone.speechStyle}; thème: ${gameSpec.theme}`,
-          publicBackstory: `Une présence IA de support pour ${gameSpec.title}, inspirée par ${roleName}.`,
+          displayName: `AI ${index + 1} · ${roleName}`,
+          speechStyle: `${tone.speechStyle}; theme: ${gameSpec.theme}`,
+          publicBackstory: `Support persona for ${gameSpec.title}, rooted in ${roleName}.`,
           behaviorRules: tone.behaviorRules,
           sampleLines: tone.sampleLines
         };

@@ -2,20 +2,20 @@ import type { ForgeResult } from "@/compiler/schemas";
 
 export const validForgeResult: ForgeResult = {
   intake: {
-    sourceRequest: "Je veux jouer a un loup-garou medieval avec quatre joueurs.",
-    language: "fr",
+    sourceRequest: "I want to play medieval werewolf with four players.",
+    language: "en",
     gameFamily: "social_deduction",
     interactionModel: "tabletop party game",
     primaryMechanics: ["hidden_roles", "turn_phases", "voting", "elimination", "team_victory", "ai_personas"],
-    theme: "Village medieval",
+    theme: "Medieval hamlet",
     players: {
       total: 4,
       humans: 3,
       ai: 1
     },
     requiredOutputs: ["rules", "cards", "personas", "visuals", "voices", "code", "validation_report"],
-    explicitRequirements: ["Quatre joueurs", "Un loup cache"],
-    assumptions: ["Partie courte de demonstration"],
+    explicitRequirements: ["Four players", "One hidden wolf"],
+    assumptions: ["Short demo-length session"],
     risks: [],
     confidence: 0.92
   },
@@ -28,11 +28,11 @@ export const validForgeResult: ForgeResult = {
   },
   gameSpec: {
     gameId: "test_werewolf_game",
-    title: "Les Ombres du Hameau",
-    pitch: "Un village vote chaque jour pour trouver le loup cache avant qu'il ne gagne.",
+    title: "Shadows Over the Hamlet",
+    pitch: "Each sunrise the villagers vote trying to exile the lone wolf before parity flips.",
     family: "social_deduction",
     pack: "werewolf",
-    theme: "Village medieval",
+    theme: "Medieval hamlet",
     players: {
       total: 4,
       humans: 3,
@@ -40,70 +40,70 @@ export const validForgeResult: ForgeResult = {
     },
     mechanics: ["hidden_roles", "turn_phases", "voting", "elimination", "team_victory", "ai_personas"],
     coreLoop: [
-      "Distribuer les roles secrets.",
-      "Resoudre la nuit.",
-      "Debattre le jour.",
-      "Voter et verifier la victoire."
+      "Secretly distribute roles.",
+      "Resolve nighttime powers quietly.",
+      "Debate loudly by day.",
+      "Vote until someone swings from the scaffold."
     ],
     rolesOrActors: [
       {
         id: "werewolf",
-        name: "Loup",
+        name: "Wolf",
         teamOrSide: "werewolves",
         count: 1,
-        publicDescription: "Un villageois comme les autres en apparence.",
-        privateGoal: "Atteindre la parite avec le village.",
-        abilities: ["Choisir une victime la nuit."]
+        publicDescription: "Looks ordinary among the villagers.",
+        privateGoal: "Reach parity with the village faction.",
+        abilities: ["Choose a nighttime victim."]
       },
       {
         id: "seer",
-        name: "Voyante",
+        name: "Seer",
         teamOrSide: "village",
         count: 1,
-        publicDescription: "Une villageoise attentive.",
-        privateGoal: "Identifier le loup sans se reveler trop tot.",
-        abilities: ["Inspecter un joueur."]
+        publicDescription: "A watchful citizen reading tells.",
+        privateGoal: "Spot wolves without tipping your hand.",
+        abilities: ["Inspect one player."]
       },
       {
         id: "villager_a",
-        name: "Villageois A",
+        name: "Villager Alpha",
         teamOrSide: "village",
         count: 1,
-        publicDescription: "Un habitant sans pouvoir special.",
-        privateGoal: "Trouver le loup par deduction.",
-        abilities: ["Debattre", "Voter"]
+        publicDescription: "No flashy powers—just suspicion.",
+        privateGoal: "Deduce the wolf through chatter.",
+        abilities: ["Debate.", "Vote."]
       },
       {
         id: "villager_b",
-        name: "Villageois B",
+        name: "Villager Bravo",
         teamOrSide: "village",
         count: 1,
-        publicDescription: "Un habitant sans pouvoir special.",
-        privateGoal: "Trouver le loup par deduction.",
-        abilities: ["Debattre", "Voter"]
+        publicDescription: "No flashy powers—just suspicion.",
+        privateGoal: "Deduce the wolf through chatter.",
+        abilities: ["Debate.", "Vote."]
       }
     ],
     phases: [
-      { id: "setup", name: "Mise en place", purpose: "Distribuer les roles.", allowedActions: ["assign_roles"], next: "night" },
-      { id: "night", name: "Nuit", purpose: "Resoudre les pouvoirs secrets.", allowedActions: ["werewolf_kill", "seer_inspect"], next: "day" },
-      { id: "day", name: "Jour", purpose: "Debattre et voter.", allowedActions: ["discuss", "vote"], next: "victory_check" }
+      { id: "setup", name: "Setup", purpose: "Hand out concealed roles quietly.", allowedActions: ["assign_roles"], next: "night" },
+      { id: "night", name: "Night", purpose: "Resolve secret powers secretly.", allowedActions: ["werewolf_kill", "seer_inspect"], next: "day" },
+      { id: "day", name: "Day", purpose: "Debate and vote.", allowedActions: ["discuss", "vote"], next: "victory_check" }
     ],
     winConditions: [
-      "Le village gagne si le loup est elimine.",
-      "Le loup gagne s'il atteint la parite."
+      "Town wins once the wolf is banished.",
+      "Wolves win once they seize parity alive."
     ],
-    safetyConstraints: ["Pas de violence graphique."],
-    assumptions: ["Demo courte."]
+    safetyConstraints: ["No graphic torture."],
+    assumptions: ["Short demo pacing."]
   },
   package: {
-    rulesMarkdown: "# Les Ombres du Hameau\n\nDebattez, votez et trouvez le loup avant la parite.",
+    rulesMarkdown: "# Shadows Over the Hamlet\n\nArgue loudly, tally votes, and oust wolves before parity hits.",
     cards: [
       {
         id: "card_werewolf",
-        name: "Loup",
+        name: "Wolf",
         roleOrActorId: "werewolf",
-        frontText: "Cache-toi parmi les villageois.",
-        privateReminder: "Elimine le village.",
+        frontText: "Blend in with sleepy villagers.",
+        privateReminder: "Cull the innocents patiently.",
         assetId: "asset_werewolf"
       }
     ],
@@ -111,17 +111,17 @@ export const validForgeResult: ForgeResult = {
       {
         id: "ai_villager",
         displayName: "Mireille",
-        speechStyle: "prudente et analytique",
-        publicBackstory: "Une habitante qui connait les habitudes du village.",
-        behaviorRules: ["Ne revele jamais d'information secrete.", "Pose des questions courtes."],
-        sampleLines: ["Qui a change son histoire depuis hier ?"]
+        speechStyle: "cautious investigator tone",
+        publicBackstory: "Knows everyone's routines around the commons.",
+        behaviorRules: ["Never leak illicit secrets aloud.", "Keep questions tight and repeatable."],
+        sampleLines: ["Who changed their story overnight?"]
       }
     ],
     assetPrompts: [
       {
         id: "hero_visual",
         kind: "hero",
-        prompt: "Medieval village at night, dramatic tabletop board game key art, safe non graphic style.",
+        prompt: "Medieval village at night, dramatic tabletop board game key art, safe non-graphic style.",
         usage: "hero preview",
         safetyNotes: ["No gore"]
       },
@@ -135,7 +135,7 @@ export const validForgeResult: ForgeResult = {
       {
         id: "voice_ai_villager",
         kind: "voice",
-        prompt: "Voice direction for Mireille. Language: fr. Base profile: FR feminine warm. Delivery: careful, hesitant, slightly tense. Character style: prudente et analytique. Theme: Village medieval. Backstory: Une habitante qui connait les habitudes du village.",
+        prompt: "Voice direction for Mireille. Language: en. Base profile: EN feminine warm (warm English voice, expressive, clear). Delivery: careful, hesitant, slightly tense; pace medium; energy medium. Character style: cautious investigator tone. Theme: Medieval hamlet. Backstory: Knows everyone's routines around the commons.",
         usage: "Gradium voice/persona direction for Mireille",
         safetyNotes: ["No impersonation of real living people", "Keep voice assistant safe and fictional"]
       }

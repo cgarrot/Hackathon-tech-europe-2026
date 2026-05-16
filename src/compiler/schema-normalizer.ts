@@ -284,7 +284,7 @@ function normalizePersona(value: unknown): unknown {
     speechStyle: value.speechStyle ?? value.style ?? "clear, playful, in-character",
     publicBackstory: value.publicBackstory ?? value.backstory ?? "A generated game persona.",
     behaviorRules: Array.isArray(value.behaviorRules) ? value.behaviorRules : Array.isArray(value.rules) ? value.rules : ["Stay in character and follow the public game state."],
-    sampleLines: Array.isArray(value.sampleLines) ? value.sampleLines : Array.isArray(value.examples) ? value.examples : ["Je suis prêt à jouer mon rôle."]
+    sampleLines: Array.isArray(value.sampleLines) ? value.sampleLines : Array.isArray(value.examples) ? value.examples : ["I'm ready to play my part."]
   };
 }
 
@@ -410,7 +410,7 @@ export function normalizeStageOutput(schemaName: string, value: unknown): unknow
   if (schemaName === "IntakeBrief") {
     return {
       sourceRequest: value.sourceRequest ?? value.prompt ?? value.intent ?? "Generated request",
-      language: value.language ?? "fr",
+      language: value.language ?? "en",
       gameFamily: mapValue(value.gameFamily ?? value.family, gameFamilies, familyAliases) ?? "custom",
       interactionModel: value.interactionModel ?? value.intent ?? value.description ?? "Generated game interaction model",
       primaryMechanics: normalizeArray(value.primaryMechanics ?? value.mechanics, mechanics, mechanicAliases, ["custom_rules"]),

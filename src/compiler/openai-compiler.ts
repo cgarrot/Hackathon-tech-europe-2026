@@ -264,99 +264,99 @@ function buildFastGameSpec(prompt: string, selectedPack: ReturnType<typeof selec
 
     return GameSpecSchema.parse({
       gameId: "fast_werewolf_game",
-      title: usefulTitle(gameSpec.title, "Les Ombres de Rochebrume"),
-      pitch: usefulPitch(gameSpec.pitch, "Un jeu de déduction sociale dans un village médiéval où les loups se cachent parmi les habitants."),
+      title: usefulTitle(gameSpec.title, "Shadows Over Rochmist"),
+      pitch: usefulPitch(gameSpec.pitch, "Social deduction around a haunted medieval hamlet hiding wolves among villagers."),
       family: selectedPack.family,
       pack: selectedPack.id,
       theme: gameSpec.theme,
       players,
       mechanics: selectedPack.mechanics,
       coreLoop: [
-        "La nuit, les rôles secrets agissent.",
-        "Le jour, les joueurs débattent et accusent.",
-        "Le vote élimine un suspect.",
-        "La victoire est vérifiée après chaque résolution."
+        "At night concealed roles secretly act.",
+        "By day villagers debate accusations.",
+        "Votes exile a suspect.",
+        "Victory settles after night resolution completes."
       ],
       rolesOrActors: [
         {
           id: "werewolf",
-          name: "Loup-Garou",
+          name: "Werewolf",
           teamOrSide: "werewolves",
           count: werewolfCount,
-          publicDescription: "Une menace cachée parmi les villageois.",
-          privateGoal: "Atteindre la parité avec le village.",
-          abilities: ["Choisir une victime chaque nuit."]
+          publicDescription: "Hidden threat lurking with the villagers.",
+          privateGoal: "Force parity with the village faction.",
+          abilities: ["Choose a victim every night."]
         },
         {
           id: "seer",
-          name: "Voyante",
+          name: "Seer",
           teamOrSide: "village",
           count: seerCount,
-          publicDescription: "Une observatrice mystique.",
-          privateGoal: "Identifier les loups sans se révéler trop tôt.",
-          abilities: ["Inspecter un joueur chaque nuit."]
+          publicDescription: "Mystic observer reading hidden allegiances.",
+          privateGoal: "Spot wolves early without tipping your hand.",
+          abilities: ["Inspect one player nightly."]
         },
         {
           id: "witch",
-          name: "Sorcière",
+          name: "Witch",
           teamOrSide: "village",
           count: witchCount,
-          publicDescription: "Une gardienne de potions anciennes.",
-          privateGoal: "Utiliser ses potions pour sauver le village.",
-          abilities: ["Potion de vie.", "Potion de mort."]
+          publicDescription: "Keeper of lifesaving—and deadly—potions.",
+          privateGoal: "Deploy brews wisely to shepherd the hamlet.",
+          abilities: ["Healing tonic.", "Killing poison."]
         },
         {
           id: "villager",
-          name: "Villageois",
+          name: "Villager",
           teamOrSide: "village",
           count: villagerCount,
-          publicDescription: "Un habitant sans pouvoir spécial.",
-          privateGoal: "Déduire qui ment et voter contre les loups.",
-          abilities: ["Débattre.", "Voter."]
+          publicDescription: "Citizen standing watch with no flashy powers.",
+          privateGoal: "Reason through lies and vote wolves out.",
+          abilities: ["Debate openly.", "Cast votes."]
         }
       ],
       phases: [
-        { id: "setup", name: "Mise en place", purpose: "Distribuer les rôles.", allowedActions: ["assign_roles"], next: "night" },
-        { id: "night", name: "Nuit", purpose: "Résoudre les pouvoirs secrets.", allowedActions: ["werewolf_kill", "seer_inspect", "witch_potion"], next: "discussion" },
-        { id: "discussion", name: "Débat", purpose: "Chercher les incohérences.", allowedActions: ["accuse", "defend", "question"], next: "vote" },
-        { id: "vote", name: "Vote", purpose: "Éliminer un suspect.", allowedActions: ["vote_player"], next: "victory_check" }
+        { id: "setup", name: "Setup", purpose: "Deal secret roles quietly.", allowedActions: ["assign_roles"], next: "night" },
+        { id: "night", name: "Night", purpose: "Resolve secret powers silently.", allowedActions: ["werewolf_kill", "seer_inspect", "witch_potion"], next: "discussion" },
+        { id: "discussion", name: "Debate", purpose: "Expose inconsistencies loudly.", allowedActions: ["accuse", "defend", "question"], next: "vote" },
+        { id: "vote", name: "Vote", purpose: "Eliminate today's suspect.", allowedActions: ["vote_player"], next: "victory_check" }
       ],
-      winConditions: ["Le village gagne si tous les loups sont éliminés.", "Les loups gagnent s'ils atteignent la parité."],
-      safetyConstraints: ["Suspense non graphique.", "Démo publique safe."],
+      winConditions: ["Village wins once every wolf is gone.", "Wolves win if they seize parity alive."],
+      safetyConstraints: ["Keep stakes tense without graphic gore.", "Safe public demo pacing."],
       assumptions: [...gameSpec.assumptions, "Guided Ollama mode: the model creates GameSpec, the server builds artifacts from pack guides."]
     });
   }
 
   return GameSpecSchema.parse({
     gameId: `fast_${selectedPack.id}_game`,
-    title: usefulTitle(gameSpec.title, `Prototype ${selectedPack.label}`),
-    pitch: usefulPitch(gameSpec.pitch, `Un prototype généré avec le pack ${selectedPack.label}.`),
+    title: usefulTitle(gameSpec.title, `${selectedPack.label} prototype`),
+    pitch: usefulPitch(gameSpec.pitch, `Generated prototype scaffolding for ${selectedPack.label}.`),
     family: selectedPack.family,
     pack: selectedPack.id,
     theme: gameSpec.theme,
     players,
     mechanics: selectedPack.mechanics,
-    coreLoop: selectedPack.defaultPhases.slice(0, 5).map((phase) => `Phase ${phase}: résoudre une étape du pack ${selectedPack.id}.`),
+    coreLoop: selectedPack.defaultPhases.slice(0, 5).map((phase) => `Beat ${phase}: advance one scripted step for ${selectedPack.id}.`),
     rolesOrActors: [
       {
         id: "player",
-        name: "Joueur",
+        name: "Player",
         teamOrSide: "players",
         count: players.total,
-        publicDescription: "Participant principal du jeu.",
-        privateGoal: "Atteindre l'objectif du jeu.",
-        abilities: ["Interagir avec les mécaniques principales."]
+        publicDescription: "Primary participant driving the tabletop loop.",
+        privateGoal: "Complete whatever win path the scenario demands.",
+        abilities: ["Engage core mechanics loudly or quietly."]
       }
     ],
     phases: selectedPack.defaultPhases.map((phase, index) => ({
       id: phase,
       name: phase,
-      purpose: `Étape ${index + 1} du pack ${selectedPack.id}.`,
+      purpose: `Step ${index + 1} for pack ${selectedPack.id}.`,
       allowedActions: ["choose", "discuss", "resolve"],
       next: selectedPack.defaultPhases[index + 1] ?? "game_over"
     })),
-    winConditions: ["La victoire est atteinte quand l'objectif principal du pack est résolu."],
-    safetyConstraints: ["Démo publique safe."],
+    winConditions: ["Win when this pack's primary objective finishes cleanly."],
+    safetyConstraints: ["Keep tone safe enough for demos."],
     assumptions: [...gameSpec.assumptions, "Guided Ollama mode: the model creates GameSpec, the server builds artifacts from pack guides."]
   });
 }

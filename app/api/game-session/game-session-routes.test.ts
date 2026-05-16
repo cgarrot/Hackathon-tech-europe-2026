@@ -54,7 +54,7 @@ describe("game-session API routes", () => {
     const body = expectSessionSuccess(await response.json());
 
     expect(response.status).toBe(200);
-    expect(body.session.title).toBe("Les Ombres du Hameau");
+    expect(body.session.title).toBe("Shadows Over the Hamlet");
     expect(body.session.events.every((event) => event.visibility === "public")).toBe(true);
     expect(JSON.stringify(body.session)).not.toContain("roleId");
     expect(body.session.ownPlayer?.roleName).toEqual(expect.any(String));
@@ -64,8 +64,8 @@ describe("game-session API routes", () => {
     const result = fixture();
     result.package.personas[0] = {
       ...result.package.personas[0],
-      speechStyle: "tendu, chaleureux et précis",
-      sampleLines: ["[tense] Je garde les yeux ouverts pendant cette phase."]
+      speechStyle: "tense warmth with forensic detail",
+      sampleLines: ["[tense] I keep eyes on this beat."]
     };
 
     const response = await startSession(jsonRequest("http://localhost/api/game-session/start", { forgeResult: result }));
@@ -73,8 +73,8 @@ describe("game-session API routes", () => {
     const personaEvent = body.session.events.find((event) => event.kind === "utterance" && event.speaker.kind === "persona");
 
     expect(response.status).toBe(200);
-    expect(personaEvent?.speaker.speechStyle).toBe("tendu, chaleureux et précis");
-    expect(personaEvent?.text).toBe("[tense] Je garde les yeux ouverts pendant cette phase.");
+    expect(personaEvent?.speaker.speechStyle).toBe("tense warmth with forensic detail");
+    expect(personaEvent?.text).toBe("[tense] I keep eyes on this beat.");
   });
 
   it("advances an existing session by id", async () => {
