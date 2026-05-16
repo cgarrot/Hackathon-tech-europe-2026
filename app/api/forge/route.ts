@@ -47,7 +47,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const providerResolution = resolveLlmProvider();
+    const requestedProvider = body.provider === "auto" ? undefined : body.provider;
+    const providerResolution = resolveLlmProvider(requestedProvider);
 
     if (providerResolution.type === "error") {
       return jsonError(providerResolution.message, 503, {

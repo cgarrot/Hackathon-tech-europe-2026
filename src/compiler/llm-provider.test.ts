@@ -56,6 +56,21 @@ describe("resolveLlmProvider", () => {
     });
   });
 
+  it("resolves OpenAI from a request override even when env defaults to Ollama", () => {
+    process.env.LLM_PROVIDER = "ollama";
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    process.env.OPENAI_MODEL = "gpt-request";
+
+    expect(resolveLlmProvider("openai")).toMatchObject({
+      type: "configured",
+      config: {
+        provider: "openai",
+        apiKey: "test-openai-key",
+        model: "gpt-request"
+      }
+    });
+  });
+
   it("resolves Ollama from explicit env", () => {
     process.env.LLM_PROVIDER = "ollama";
     process.env.OLLAMA_API_KEY = "test-ollama-key";
@@ -70,6 +85,23 @@ describe("resolveLlmProvider", () => {
         baseURL: "https://ollama.com/v1/",
         model: "deepseek-test",
         strictJsonSchema: false
+      }
+    });
+  });
+
+  it("resolves Ollama from a request override even when env defaults to OpenAI", () => {
+    process.env.LLM_PROVIDER = "openai";
+    process.env.OLLAMA_API_KEY = "test-ollama-key";
+    process.env.OLLAMA_BASE_URL = "https://ollama.com/v1/";
+    process.env.OLLAMA_MODEL = "deepseek-request";
+
+    expect(resolveLlmProvider("ollama")).toMatchObject({
+      type: "configured",
+      config: {
+        provider: "ollama",
+        apiKey: "test-ollama-key",
+        baseURL: "https://ollama.com/v1/",
+        model: "deepseek-request"
       }
     });
   });

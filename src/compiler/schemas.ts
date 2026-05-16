@@ -38,6 +38,8 @@ export const ArtifactKindSchema = z.enum([
   "validation_report"
 ]);
 
+export const ForgeProviderChoiceSchema = z.enum(["auto", "openai", "ollama"]);
+
 export const PlayerConfigSchema = z
   .object({
     total: z.number().int().min(1).max(40),
@@ -197,7 +199,8 @@ export const ArtifactPackageSchema = z
 
 export const ForgeRequestSchema = z
   .object({
-    prompt: z.string().min(8).max(4000)
+    prompt: z.string().min(8).max(4000),
+    provider: ForgeProviderChoiceSchema.default("auto")
   })
   .strict();
 
@@ -214,6 +217,7 @@ export const ForgeResultSchema = z
 export type GameFamily = z.infer<typeof GameFamilySchema>;
 export type Mechanic = z.infer<typeof MechanicSchema>;
 export type ArtifactKind = z.infer<typeof ArtifactKindSchema>;
+export type ForgeProviderChoice = z.infer<typeof ForgeProviderChoiceSchema>;
 export type IntakeBrief = z.infer<typeof IntakeBriefSchema>;
 export type PackSelection = z.infer<typeof PackSelectionSchema>;
 export type GameSpec = z.infer<typeof GameSpecSchema>;

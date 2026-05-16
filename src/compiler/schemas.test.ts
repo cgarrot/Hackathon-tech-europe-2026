@@ -15,4 +15,22 @@ describe("Forge schemas", () => {
 
     expect(parsed.success).toBe(false);
   });
+
+  it("accepts request-level OpenAI and Ollama provider choices", () => {
+    expect(ForgeRequestSchema.parse({
+      prompt: "Je veux générer un jeu avec OpenAI.",
+      provider: "openai"
+    }).provider).toBe("openai");
+
+    expect(ForgeRequestSchema.parse({
+      prompt: "Je veux générer un jeu avec Ollama.",
+      provider: "ollama"
+    }).provider).toBe("ollama");
+  });
+
+  it("defaults forge requests to auto provider resolution", () => {
+    expect(ForgeRequestSchema.parse({
+      prompt: "Je veux générer un jeu avec le provider configuré."
+    }).provider).toBe("auto");
+  });
 });

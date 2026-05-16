@@ -41,8 +41,8 @@ function withHardTimeout<T>(promise: Promise<T>, timeoutMs: number, label: strin
   });
 }
 
-function readProviderName(): RealLlmProvider | undefined {
-  const rawProvider = process.env.LLM_PROVIDER?.trim().toLowerCase();
+function readProviderName(value = process.env.LLM_PROVIDER): RealLlmProvider | undefined {
+  const rawProvider = value?.trim().toLowerCase();
   if (!rawProvider) {
     return undefined;
   }
@@ -66,8 +66,8 @@ function readTimeoutMs(): number {
   return timeout;
 }
 
-export function resolveLlmProvider(): ProviderResolution {
-  const rawProvider = process.env.LLM_PROVIDER?.trim().toLowerCase();
+export function resolveLlmProvider(preferredProvider?: RealLlmProvider): ProviderResolution {
+  const rawProvider = preferredProvider ?? process.env.LLM_PROVIDER?.trim().toLowerCase();
   if (rawProvider) {
     const parsedProvider = ProviderSchema.safeParse(rawProvider);
     if (!parsedProvider.success) {
@@ -75,7 +75,7 @@ export function resolveLlmProvider(): ProviderResolution {
     }
   }
 
-  const provider = readProviderName();
+  const provider = preferredProvider ?? readProviderName();
   const timeoutMs = readTimeoutMs();
 
   if (provider === "ollama" || (!provider && process.env.OLLAMA_API_KEY)) {
