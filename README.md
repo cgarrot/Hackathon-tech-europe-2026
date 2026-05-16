@@ -1,6 +1,13 @@
-# GameForge Gradium Voice Prototype
+# GameForge Integrations
 
-Prototype minimal pour tester la couche voix de GameForge avec Gradium:
+Prototypes d'integration independants pour GameForge:
+
+- `gameforge_voice` / `gameforge_gradium`: STT/TTS avec Gradium.
+- `gameforge_visuals` / `gameforge_fal`: generation d'images avec fal.
+
+## Voice: Gradium
+
+Prototype minimal pour tester la couche voix avec Gradium:
 
 - TTS: generer un fichier audio WAV a partir d'une replique de jeu.
 - STT: transcrire un fichier audio existant.
@@ -122,3 +129,44 @@ Docs Gradium utiles:
 - [Documentation index](https://docs.gradium.ai/llms.txt)
 - [Text-to-Speech](https://docs.gradium.ai/guides/text-to-speech)
 - [Speech-to-Text](https://docs.gradium.ai/guides/speech-to-text)
+
+## Visuals: fal
+
+Prototype minimal pour tester la generation d'images avec fal.
+
+Configure la cle:
+
+```bash
+export FAL_KEY="your-fal-key-here"
+```
+
+```bash
+gameforge-visuals image \
+  --prompt "A medieval village square at night, torches flickering, anxious villagers gathering to vote, cinematic fantasy concept art." \
+  --image-size landscape_16_9 \
+  --num-images 1 \
+  --output-dir artifacts/fal/village
+```
+
+Generer des cartes de role Loup-garou:
+
+```bash
+gameforge-visuals werewolf-cards \
+  --roles loup-garou villageois voyante sorciere \
+  --output-dir artifacts/fal/werewolf-cards-fr \
+  --image-size portrait_4_3
+```
+
+Generer les assets depuis un schema OpenAI/GameForge:
+
+```bash
+gameforge-visuals from-schema \
+  --schema examples/game_schema_visuals.json \
+  --provider mock \
+  --output-dir artifacts/mock/visuals
+```
+
+Voir aussi:
+
+- [docs/visual-runtime.md](docs/visual-runtime.md)
+- [Flux Schnell API](https://fal.ai/docs/model-api-reference/image-generation-api/flux-schnell)

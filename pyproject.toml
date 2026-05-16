@@ -1,10 +1,11 @@
 [project]
-name = "gameforge-gradium"
+name = "gameforge-integrations"
 version = "0.1.0"
-description = "Minimal Gradium voice layer prototype for GameForge."
+description = "Independent voice and visual integration prototypes for GameForge."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "fal-client",
     "gradium",
     "sounddevice",
 ]
@@ -17,6 +18,7 @@ dev = [
 
 [project.scripts]
 gameforge-voice = "gameforge_gradium.cli:main"
+gameforge-visuals = "gameforge_fal.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
