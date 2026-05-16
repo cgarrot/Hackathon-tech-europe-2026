@@ -1,0 +1,40 @@
+{
+  "tests": [
+    {
+      "id": "werewolf_dawn_narration",
+      "pack": "werewolf",
+      "goal": "Generate an ArtifactPackage for a werewolf game with strong dawn narration, suspicious village dialogue, and one warm family-safe narrator voice.",
+      "gameSpecSummary": "title=Les Lanternes du Matin Gris, theme=village sous brume automnale, mechanics=hidden_roles,turn_phases,voting,team_victory,ai_personas, phases=night,dawn,discussion,vote, roles=werewolf,seer,villager,narrator"
+    },
+    {
+      "id": "mystery_interrogation_tension",
+      "pack": "mystery",
+      "goal": "Generate an ArtifactPackage for a hotel murder investigation with sharp interrogation pacing, a nervous suspect persona, and one elegant narrator voice.",
+      "gameSpecSummary": "title=La Clé du Cinquième Étage, theme=hôtel ancien sous la pluie, mechanics=clue_discovery,dialogue_interrogation,solo_victory,ai_personas, phases=discovery,interrogation,deduction,accusation, roles=detective,concierge,suspect,narrator"
+    },
+    {
+      "id": "debate_moderator_clarity",
+      "pack": "debate",
+      "goal": "Generate an ArtifactPackage for a public debate with crisp moderator pacing, contrasted debater voices, and audience-vote tension.",
+      "gameSpecSummary": "title=Le Forum des Contradictions, theme=tribune publique solennelle, mechanics=dialogue_interrogation,audience_judging,score_rounds,ai_personas, phases=opening,argument,rebuttal,audience_vote,judgement, roles=moderator,debater_a,debater_b,audience"
+    },
+    {
+      "id": "quiz_host_energy",
+      "pack": "quiz",
+      "goal": "Generate an ArtifactPackage for a fast quiz host with short reveal lines, score announcements, and playful TTS rhythm.",
+      "gameSpecSummary": "title=Le Sprint des Réponses, theme=plateau néon, mechanics=score_rounds,turn_phases,solo_victory,audience_judging, phases=round_intro,answer,reveal,score_update,final_results, roles=host,contestant"
+    },
+    {
+      "id": "survival_hazard_voice",
+      "pack": "survival",
+      "goal": "Generate an ArtifactPackage for a survival game with scarcity announcements, hazard narration, and one reassuring guide voice plus one ominous environment voice.",
+      "gameSpecSummary": "title=Les Vivres du Dernier Camp, theme=camp glacé balayé par le vent, mechanics=resource_management,survival_pressure,turn_phases,elimination,solo_victory,ai_personas, phases=event,resource_choice,conflict,survival_check, roles=survivor,guide,storm_ai"
+    },
+    {
+      "id": "generic_weird_world",
+      "pack": "generic",
+      "goal": "Generate an ArtifactPackage for a strange custom game in a haunted observatory with one eerie narrator and one skeptical operator persona.",
+      "gameSpecSummary": "title=La Lunette des Choses Perdues, theme=observatoire hanté sur falaise, mechanics=custom_rules,turn_phases,ai_personas, phases=setup,interaction,resolution,victory_check, roles=operator,visitor,echo_voice,narrator"
+    }
+  ]
+}
