@@ -1,0 +1,12 @@
+{
+  "allowedEmotionTags": [
+    "[calm]",
+    "[warm]",
+    "[tense]",
+    "[surprise]",
+    "[whisper]",
+    "[urgent]",
+    "[skeptical]",
+    "[angry]"
+  ]
+}
