@@ -5,6 +5,18 @@ Prototypes d'integration independants pour GameForge:
 - `gameforge_voice` / `gameforge_gradium`: STT/TTS avec Gradium.
 - `gameforge_visuals` / `gameforge_fal`: generation d'images avec fal.
 - `web/gameforge-input`: interface web d'input en langage naturel.
+- `data/context`: datasets de contexte pour repliques IA et prompts visuels.
+
+## Context Datasets
+
+Deux listes JSONL servent de base commune pour les briques OpenAI, Pioneer, fal et Gradium:
+
+- `data/context/ai_player_lines.jsonl`: repliques de joueurs IA, intentions, emotions et indications de delivery.
+- `data/context/visual_asset_prompts.jsonl`: prompts de decors, cartes, actions et etats de jeu.
+
+Voir aussi:
+
+- [docs/context-datasets.md](docs/context-datasets.md)
 
 ## Web Input
 
