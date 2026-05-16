@@ -56,6 +56,30 @@ select {
   font: inherit;
 }
 
+.provider-select-label {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.provider-select-label select {
+  width: min(100%, 280px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 10px 14px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.28);
+  outline: none;
+}
+
+.provider-select-label select:focus {
+  border-color: rgba(244, 184, 96, 0.8);
+  box-shadow: 0 0 0 4px rgba(244, 184, 96, 0.12);
+}
+
 .shell {
   width: min(1180px, calc(100vw - 32px));
   margin: 0 auto;

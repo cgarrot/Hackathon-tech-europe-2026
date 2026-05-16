@@ -26,6 +26,8 @@ type ProjectSuccessResponse = {
 
 type ProjectResponse = ProjectSuccessResponse | ErrorResponse;
 
+type ProviderChoice = "auto" | "openai" | "ollama";
+
 const examples = [
   "Je veux jouer à un jeu de loup-garou dans un village médiéval, 8 joueurs dont 2 IA, avec une voyante et une sorcière.",
   "Je veux un jeu d'enquête policière dans un manoir, 6 suspects dont 3 IA, un détective humain et des indices cachés.",
@@ -334,6 +336,7 @@ function PackageFacts({ result }: { result: ForgeResult }) {
 
 export function ForgeClient() {
   const [prompt, setPrompt] = useState(examples[0]);
+  const [providerChoice, setProviderChoice] = useState<ProviderChoice>("auto");
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [projectResponse, setProjectResponse] = useState<ProjectResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -594,7 +597,7 @@ export function ForgeClient() {
       const apiResponse = await fetch("/api/forge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt })
+        body: JSON.stringify({ prompt, provider: providerChoice })
       });
       const json = (await apiResponse.json()) as ApiResponse;
       setResponse(json);
@@ -674,6 +677,14 @@ export function ForgeClient() {
         <div className="panel">
           <h2>Demande utilisateur</h2>
           <p className="hint">Essaie Loup-garou, enquête, blind test, débat, survie ou une idée custom.</p>
+          <label className="provider-select-label">
+            Provider LLM
+            <select value={providerChoice} onChange={(event) => setProviderChoice(event.target.value as ProviderChoice)} disabled={isLoading}>
+              <option value="auto">Auto (.env LLM_PROVIDER)</option>
+              <option value="ollama">Ollama Cloud</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </label>
           <textarea aria-label="Description du jeu à compiler" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
           <div className="voice-toolbar" aria-label="Contrôles voix Gradium">
             <button
