@@ -472,6 +472,136 @@ function eventKindLabel(kind: VoiceGameEvent["kind"]) {
   }
 }
 
+interface PlayerGuidancePhase {
+  name: string;
+  purpose: string;
+  allowedActions: string[];
+}
+
+function friendlyActionLabel(action: string) {
+  const normalized = action.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (/werewolf|wolf|loup|kill|elimin/.test(normalized)) {
+    return "Choisis une victime et dis son nom";
+  }
+  if (/seer|voyante|inspect|scan|reveal/.test(normalized)) {
+    return "Choisis une personne à inspecter";
+  }
+  if (/witch|potion|heal|save|protect|guard/.test(normalized)) {
+    return "Dis qui protéger ou sauver";
+  }
+  if (/vote|voter/.test(normalized)) {
+    return "Vote contre un joueur précis";
+  }
+  if (/accuse|accus/.test(normalized)) {
+    return "Accuse quelqu’un avec une raison";
+  }
+  if (/defend|defendre|defense/.test(normalized)) {
+    return "Défends-toi en une phrase claire";
+  }
+  if (/discuss|debate|talk|speak|discut|parler/.test(normalized)) {
+    return "Partage un indice ou un soupçon";
+  }
+  if (/answer|repond|reply/.test(normalized)) {
+    return "Donne ta réponse à voix haute";
+  }
+  if (/choice|choose|choisir|select/.test(normalized)) {
+    return "Annonce ton choix clairement";
+  }
+  if (/search|collect|indice|clue|objectif/.test(normalized)) {
+    return "Cherche un indice ou un objectif";
+  }
+
+  return `Fais: ${action.replace(/[_-]+/g, " ")}`;
+}
+
+function uniqueActionHints(actions: string[]) {
+  return Array.from(new Set(actions.map(friendlyActionLabel))).slice(0, 4);
+}
+
+function playerGuidanceFor(params: {
+  phase: PlayerGuidancePhase | undefined;
+  session: VoiceGamePublicSession | null;
+  runStatus: VoiceSessionRunStatus;
+  remainingSeconds: number;
+  inputWindowIsLive: boolean;
+}) {
+  const actionHints = uniqueActionHints(params.phase?.allowedActions ?? []);
+  const fallbackActions = actionHints.length > 0 ? actionHints : ["Écoute la scène", "Prépare une décision courte"];
+  const pendingPrompt = params.session?.pendingInput?.prompt;
+
+  if (params.runStatus === "error") {
+    return {
+      tone: "danger",
+      title: "Corrige le blocage",
+      body: "Regarde le statut voix, puis relance la partie quand l’erreur est réglée.",
+      actions: ["Lis l’erreur", "Relance après correction"]
+    };
+  }
+
+  if (params.runStatus === "ended") {
+    return {
+      tone: "done",
+      title: "Partie terminée",
+      body: "Lis le journal live pour comprendre la résolution, ou relance une partie pour rejouer.",
+      actions: ["Relire le journal", "Relancer la partie"]
+    };
+  }
+
+  if (params.inputWindowIsLive && pendingPrompt) {
+    return {
+      tone: "live",
+      title: "Parle maintenant",
+      body: `Tu as ${params.remainingSeconds}s: donne une phrase courte avec ton choix. ${pendingPrompt}`,
+      actions: fallbackActions
+    };
+  }
+
+  if (pendingPrompt) {
+    return {
+      tone: "prepare",
+      title: "Prépare ta réponse",
+      body: "Le micro va s’ouvrir après la narration. Choisis maintenant quoi dire, mais ne parle pas encore.",
+      actions: fallbackActions
+    };
+  }
+
+  if (params.runStatus === "speaking") {
+    return {
+      tone: "listen",
+      title: "Écoute, puis décide",
+      body: "Le maître du jeu ou une IA parle. Repère les noms, indices et soupçons avant ta prochaine réponse.",
+      actions: fallbackActions
+    };
+  }
+
+  if (params.runStatus === "advancing") {
+    return {
+      tone: "wait",
+      title: "Attends la résolution",
+      body: "Le moteur applique la dernière réponse et prépare la prochaine phase.",
+      actions: ["Regarde le journal", "Prépare le tour suivant"]
+    };
+  }
+
+  if (params.runStatus === "starting") {
+    return {
+      tone: "wait",
+      title: "Installation de la table",
+      body: "La session démarre. Attends les premières consignes du maître du jeu.",
+      actions: ["Attends la narration", "Regarde les rôles publics"]
+    };
+  }
+
+  return {
+    tone: "ready",
+    title: params.session ? `Joue la phase: ${params.phase?.name ?? "en cours"}` : "Lance la partie",
+    body: params.session
+      ? params.phase?.purpose ?? "Suis les consignes de la phase en cours."
+      : "Clique sur Commencer; cette carte te dira ensuite exactement quoi écouter, préparer ou dire.",
+    actions: params.session ? fallbackActions : ["Cliquer sur Commencer", "Suivre la carte À faire"]
+  };
+}
+
 function sessionStatusLabel(status: VoiceSessionRunStatus) {
   if (status === "starting") {
     return "démarrage";
@@ -621,6 +751,8 @@ function GeneratedGameFullscreen({
     ? `${Math.max(1, currentPhaseIndex + 1)}/${phaseSource.length}`
     : runtimeSpec ? `1/${runtimeSpec.phases.length}` : "setup";
   const visibleParticipants = session?.participants.slice(0, 8) ?? [];
+  const inputWindowIsLive = runStatus === "listening";
+  const playerGuidance = playerGuidanceFor({ phase: activePhase, session, runStatus, remainingSeconds, inputWindowIsLive });
 
   return (
     <main className="generated-game-fullscreen" aria-labelledby="generated-game-title">
@@ -631,7 +763,7 @@ function GeneratedGameFullscreen({
         </button>
         <div className="generated-topbar-actions">
           <button type="button" className="secondary" onClick={onDownloadPackage}>JSON</button>
-          <button type="button" className="secondary" onClick={onGenerateProject} disabled={isGeneratingProject}>{isGeneratingProject ? "Runtime..." : "Regénérer runtime"}</button>
+          <button type="button" className="secondary" onClick={onGenerateProject} disabled={isGeneratingProject}>{isGeneratingProject ? "Projet..." : "Regénérer projet"}</button>
           <button type="button" className="secondary" onClick={onDownloadProject} disabled={!project}>Projet</button>
           <button type="button" onClick={onReset}>Nouveau jeu</button>
         </div>
@@ -685,18 +817,20 @@ function GeneratedGameFullscreen({
               </div>
             </div>
           ) : (
-            <div className="generated-game-build" role="status">
-              <div className="forge-visual" aria-hidden="true">
-                <div className="forge-core" />
-                <div className="forge-orbit orbit-one" />
-                <div className="forge-orbit orbit-two" />
-                <div className="forge-card card-one" />
-                <div className="forge-card card-two" />
-                <div className="forge-card card-three" />
-              </div>
-              <p className="eyebrow">Préparation du runtime</p>
-              <h2>{isGeneratingProject ? "On forge le plateau jouable." : "Runtime indisponible."}</h2>
-              <p className="hint">{isGeneratingProject ? "Le jeu est compilé; génération du manifest plein écran en cours." : "Relance la génération du manifest projet pour afficher le plateau."}</p>
+            <div className={`generated-live-scene voice-session-${runStatus}`} role="status">
+              <div className="voice-orb" aria-hidden="true" />
+              <p className="eyebrow">Scène live</p>
+              <h2>{isGeneratingProject && !session ? "Préparation du support visuel." : activePhase?.name ?? "Table prête"}</h2>
+              <p>{activeEvent?.text ?? activeVisual?.text ?? activePhase?.purpose ?? "Commence la partie: les phases, répliques, réponses et décisions apparaîtront ici en direct."}</p>
+              {visibleParticipants.length > 0 ? (
+                <div className="voice-actors generated-live-scene-actors" aria-label="Participants">
+                  {visibleParticipants.map((participant) => (
+                    <span className={participant.alive ? undefined : "inactive-actor"} key={participant.id} title={participant.displayName}>
+                      {participant.displayName.slice(0, 1).toUpperCase()}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
           <div className="generated-board-legend" aria-label="Légende du plateau">
@@ -708,6 +842,15 @@ function GeneratedGameFullscreen({
         </div>
 
         <aside className="generated-game-hud" aria-label="Contrôles de partie">
+          <section className={`generated-hud-card generated-player-brief generated-player-brief-${playerGuidance.tone}`}>
+            <span className="preview-label">À faire maintenant</span>
+            <h2>{playerGuidance.title}</h2>
+            <p>{playerGuidance.body}</p>
+            <div className="generated-player-actions" aria-label="Actions conseillées">
+              {playerGuidance.actions.map((action, index) => <span key={`${action}-${index}`}>{action}</span>)}
+            </div>
+          </section>
+
           <section className="generated-hud-card generated-phase-card">
             <span className="preview-label">Phase active</span>
             <h2>{activePhase?.name ?? "Phase générée"}</h2>
@@ -719,11 +862,11 @@ function GeneratedGameFullscreen({
               <span>{runtimeSpec ? `${runtimeSpec.rules.collectibleCount} objectifs` : "manifest"}</span>
             </div>
             <div className="generated-phase-actions" aria-label="Actions possibles">
-              {(activePhase?.allowedActions ?? []).slice(0, 5).map((action) => <span key={action}>{action}</span>)}
+              {playerGuidance.actions.map((action, index) => <span key={`${action}-${index}`}>{action}</span>)}
             </div>
             {session?.pendingInput ? (
-              <div className="generated-input-window" role="status">
-                <strong>Fenêtre vocale ouverte</strong>
+              <div className={`generated-input-window${inputWindowIsLive ? " generated-input-window-live" : ""}`} role="status">
+                <strong>{inputWindowIsLive ? "Micro ouvert" : "Fenêtre vocale à venir"}</strong>
                 <span>{session.pendingInput.prompt}</span>
               </div>
             ) : null}
@@ -900,7 +1043,11 @@ function PlayableRuntimePreview({
           <p className="hint">
             Après Start, le moteur serveur déroule les phases, Gradium lit les répliques, puis le micro s'ouvre uniquement pendant les fenêtres vocales.
           </p>
-          {session?.pendingInput ? <p className="voice-input-prompt">{session.pendingInput.prompt}</p> : null}
+          {session?.pendingInput ? (
+            <p className={`voice-input-prompt${runStatus === "listening" ? " voice-input-prompt-live" : ""}`}>
+              {runStatus === "listening" ? session.pendingInput.prompt : `À venir: ${session.pendingInput.prompt}`}
+            </p>
+          ) : null}
         </aside>
 
         <div className="video-output-panel" aria-label="Storyboard vidéo généré">
@@ -1897,7 +2044,7 @@ export function ForgeClient() {
           </section>
         ) : null}
 
-        <button className="primary-button hero-generate-button" type="submit" disabled={prompt.trim().length < 8 || isPromptVoiceBusy}>
+        <button className="primary-button hero-generate-button" type="submit" disabled={prompt.trim().length < 8 || isPromptVoiceBusy} suppressHydrationWarning>
           <span className="button-icon" aria-hidden="true">↗</span>
           <span>Générer le jeu</span>
         </button>
