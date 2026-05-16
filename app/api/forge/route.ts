@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { compileWithLlmProvider } from "@/compiler/openai-compiler";
+import type { CompilerProgressEvent } from "@/compiler/openai-compiler";
 import { resolveLlmProvider } from "@/compiler/llm-provider";
 import type { RealLlmProvider } from "@/compiler/llm-provider";
 import { ForgeRequestSchema, ForgeResultSchema } from "@/compiler/schemas";
@@ -16,9 +17,65 @@ import { z } from "zod";
 export const runtime = "nodejs";
 
 type ForgeMode = RealLlmProvider;
+type ForgeStreamEvent =
+  | { type: "progress"; progress: CompilerProgressEvent }
+  | { type: "result"; ok: true; mode: ForgeMode; warnings: string[]; result: unknown }
+  | { type: "error"; ok: false; error: string; details?: unknown };
 
 function jsonError(error: string, status: number, details?: unknown) {
   return NextResponse.json({ ok: false, error, details }, { status });
+}
+
+function forgeStreamResponse(params: {
+  prompt: string;
+  mode: ForgeMode;
+  config: Parameters<typeof compileWithLlmProvider>[1];
+}) {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = (event: ForgeStreamEvent) => {
+        controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      };
+
+      void (async () => {
+        try {
+          const result = await compileWithLlmProvider(params.prompt, params.config, {
+            onProgress: (progress) => send({ type: "progress", progress })
+          });
+          const parsedResult = ForgeResultSchema.parse(result);
+          const invariantIssues = validateForgeResult(parsedResult);
+
+          if (invariantIssues.length > 0) {
+            send({ type: "error", ok: false, error: "compiler_invariant_failed", details: invariantIssues });
+            return;
+          }
+
+          send({ type: "result", ok: true, mode: params.mode, warnings: [], result: parsedResult });
+        } catch (error) {
+          if (error instanceof z.ZodError) {
+            send({ type: "error", ok: false, error: "compiler_schema_validation_failed", details: error.issues });
+            return;
+          }
+
+          console.error("GameForge provider stream failed.", error);
+          send({ type: "error", ok: false, error: "llm_provider_error" });
+        } finally {
+          releaseForgeRequestSlot();
+          controller.close();
+        }
+      })();
+    }
+  });
+
+  return new NextResponse(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/x-ndjson",
+      "Cache-Control": "no-store"
+    }
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -53,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     if (providerResolution.type === "error") {
       return jsonError(providerResolution.message, 503, {
-        hint: "Set LLM_PROVIDER=pioneer with PIONEER_API_KEY for Kimi, LLM_PROVIDER=openai with OPENAI_API_KEY, or LLM_PROVIDER=ollama with OLLAMA_API_KEY + OLLAMA_BASE_URL. GameForge app runtime requires a real provider."
+        hint: "Set LLM_PROVIDER=openai with OPENAI_API_KEY, or LLM_PROVIDER=ollama with OLLAMA_API_KEY + OLLAMA_BASE_URL. Pioneer is disabled in this runtime."
       });
     }
 
@@ -64,6 +121,14 @@ export async function POST(request: NextRequest) {
     }
 
     const mode: ForgeMode = providerResolution.config.provider;
+    if (request.nextUrl.searchParams.get("stream") === "1") {
+      return forgeStreamResponse({
+        prompt: body.prompt,
+        mode,
+        config: providerResolution.config
+      });
+    }
+
     const result = await compileWithLlmProvider(body.prompt, providerResolution.config)
       .finally(() => releaseForgeRequestSlot());
 

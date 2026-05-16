@@ -57,6 +57,7 @@ describe("game-session API routes", () => {
     expect(body.session.title).toBe("Les Ombres du Hameau");
     expect(body.session.events.every((event) => event.visibility === "public")).toBe(true);
     expect(JSON.stringify(body.session)).not.toContain("roleId");
+    expect(body.session.ownPlayer?.roleName).toEqual(expect.any(String));
   });
 
   it("preserves generated persona sample lines and speech style through session start", async () => {

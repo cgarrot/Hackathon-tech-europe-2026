@@ -12,7 +12,7 @@ type SuccessResponse = {
   result: ForgeResult;
 };
 
-type ProviderMode = "openai" | "ollama" | "pioneer";
+type ProviderMode = "openai" | "ollama";
 
 type ErrorResponse = {
   ok: false;
@@ -38,24 +38,42 @@ type VoiceSessionResponse = VoiceSessionSuccessResponse | ErrorResponse;
 
 type VoiceSessionRunStatus = "idle" | "starting" | "speaking" | "listening" | "advancing" | "ended" | "error";
 
-const loadingSteps = [
-  { label: "La demande devient une promesse de partie.", percent: 14 },
-  { label: "Les règles trouvent leur rythme.", percent: 31 },
-  { label: "Les personnages reçoivent une intention.", percent: 49 },
-  { label: "Le monde cherche sa première image.", percent: 66 },
-  { label: "Les voix se placent dans la scène.", percent: 83 },
-  { label: "La porte s’ouvre.", percent: 100 }
-];
+type ForgeProgressStage =
+  | "intake"
+  | "family_router"
+  | "game_spec"
+  | "artifact_package"
+  | "validation";
+
+type ForgeProgressEvent = {
+  stage: ForgeProgressStage;
+  status: "running" | "complete" | "skipped";
+  detail?: string;
+};
+
+type ForgeStreamEvent =
+  | { type: "progress"; progress: ForgeProgressEvent }
+  | { type: "result"; ok: true; mode: ProviderMode; warnings: string[]; result: ForgeResult }
+  | { type: "error"; ok: false; error: string; details?: unknown };
+
+const loadingStageCopy: Record<ForgeProgressStage, { label: string; percent: number }> = {
+  intake: { label: "La demande devient une promesse de partie.", percent: 20 },
+  family_router: { label: "Le bon type de jeu est choisi.", percent: 35 },
+  game_spec: { label: "Les règles trouvent leur rythme.", percent: 52 },
+  artifact_package: { label: "Les personnages, cartes et scènes prennent forme.", percent: 72 },
+  validation: { label: "La porte s’ouvre.", percent: 100 }
+};
+
+const initialLoadingProgress = { label: "Connexion à la forge du jeu.", percent: 4 };
 
 const isDevelopmentMode = process.env.NODE_ENV === "development";
 const devPromptWithoutStt = "Crée un jeu coopératif de 4 joueurs dans une station sous-marine hantée, avec des rôles secrets, des indices audio et une phase finale contre la montre.";
 
 const errorLabels: Record<string, string> = {
-  invalid_llm_provider: "LLM_PROVIDER doit valoir openai, ollama ou pioneer.",
+  invalid_llm_provider: "LLM_PROVIDER doit valoir openai ou ollama.",
   missing_llm_provider_configuration: "Configure un vrai provider LLM côté serveur avant de compiler.",
   missing_ollama_configuration: "Configuration Ollama incomplète: ajoute OLLAMA_API_KEY et OLLAMA_BASE_URL.",
   missing_openai_api_key: "Configuration OpenAI incomplète: ajoute OPENAI_API_KEY.",
-  missing_pioneer_configuration: "Configuration Pioneer/Kimi incomplète: ajoute PIONEER_API_KEY.",
   malformed_json: "La requête envoyée à l'API est invalide.",
   request_validation_error: "La demande est invalide ou trop courte.",
   compiler_schema_validation_failed: "Le provider a répondu avec une structure invalide.",
@@ -72,6 +90,7 @@ const errorLabels: Record<string, string> = {
   empty_audio: "L'enregistrement est vide. Réessaie en parlant plus près du micro.",
   audio_too_large: "L'enregistrement est trop long pour cette démo.",
   voice_recording_unsupported: "Ce navigateur ne supporte pas l'enregistrement audio MediaRecorder.",
+  voice_audio_transcode_unsupported: "Ce navigateur ne peut pas convertir l'audio micro en WAV pour Gradium.",
   voice_microphone_denied: "Impossible d'accéder au micro. Vérifie l'autorisation navigateur.",
   gradium_stt_failed: "Gradium STT a refusé ou échoué la transcription.",
   gradium_tts_failed: "Gradium TTS a refusé ou échoué la synthèse vocale.",
@@ -92,8 +111,6 @@ function formatError(response: ErrorResponse) {
 
 function providerModeLabel(mode: ProviderMode) {
   switch (mode) {
-    case "pioneer":
-      return "Pioneer / Kimi";
     case "ollama":
       return "Ollama Cloud";
     case "openai":
@@ -116,6 +133,40 @@ async function readApiErrorResponse(response: Response, fallbackError: string): 
 
   const text = await response.text();
   return { ok: false, error: text || fallbackError };
+}
+
+async function readForgeStream(response: Response, onEvent: (event: ForgeStreamEvent) => void) {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("network_error");
+  }
+
+  const decoder = new TextDecoder();
+  let pending = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    pending += decoder.decode(value, { stream: true });
+    const lines = pending.split(/\r?\n/);
+    pending = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) {
+        continue;
+      }
+      onEvent(JSON.parse(trimmedLine) as ForgeStreamEvent);
+    }
+  }
+
+  const finalLine = `${pending}${decoder.decode()}`.trim();
+  if (finalLine) {
+    onEvent(JSON.parse(finalLine) as ForgeStreamEvent);
+  }
 }
 
 type RoleOrActor = ForgeResult["gameSpec"]["rolesOrActors"][number];
@@ -203,6 +254,10 @@ function collectEventText(value: unknown): string[] {
 }
 
 function audioFileExtension(contentType: string) {
+  if (contentType.includes("webm")) {
+    return "webm";
+  }
+
   if (contentType.includes("ogg")) {
     return "ogg";
   }
@@ -216,6 +271,68 @@ function audioFileExtension(contentType: string) {
   }
 
   return "webm";
+}
+
+function isGradiumSttCompatibleAudio(contentType: string) {
+  const normalized = contentType.split(";")[0]?.trim().toLowerCase();
+  return normalized === "audio/wav" || normalized === "audio/ogg" || normalized === "audio/opus" || normalized === "audio/pcm";
+}
+
+function writeAscii(view: DataView, offset: number, value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    view.setUint8(offset + index, value.charCodeAt(index));
+  }
+}
+
+function encodeAudioBufferAsWav(audioBuffer: AudioBuffer) {
+  const channelCount = audioBuffer.numberOfChannels;
+  const sampleCount = audioBuffer.length;
+  const bytesPerSample = 2;
+  const blockAlign = channelCount * bytesPerSample;
+  const dataByteLength = sampleCount * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataByteLength);
+  const view = new DataView(buffer);
+
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataByteLength, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channelCount, true);
+  view.setUint32(24, audioBuffer.sampleRate, true);
+  view.setUint32(28, audioBuffer.sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bytesPerSample * 8, true);
+  writeAscii(view, 36, "data");
+  view.setUint32(40, dataByteLength, true);
+
+  const channels = Array.from({ length: channelCount }, (_, index) => audioBuffer.getChannelData(index));
+  let offset = 44;
+  for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+    for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
+      const sample = Math.max(-1, Math.min(1, channels[channelIndex][sampleIndex] ?? 0));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += bytesPerSample;
+    }
+  }
+
+  return buffer;
+}
+
+async function transcodeAudioBlobToWav(audioBlob: Blob) {
+  const AudioContextCtor = window.AudioContext;
+  if (!AudioContextCtor) {
+    throw new Error("voice_audio_transcode_unsupported");
+  }
+
+  const audioContext = new AudioContextCtor();
+  try {
+    const audioBuffer = await audioContext.decodeAudioData(await audioBlob.arrayBuffer());
+    return new Blob([encodeAudioBufferAsWav(audioBuffer)], { type: "audio/wav" });
+  } finally {
+    await audioContext.close().catch(() => undefined);
+  }
 }
 
 function findCardForRole(cards: CardSpec[], roleId: string) {
@@ -624,6 +741,43 @@ function sessionStatusLabel(status: VoiceSessionRunStatus) {
   return "prêt";
 }
 
+function activeSpeakerTitle(params: {
+  activeEvent: VoiceGameEvent | null;
+  runStatus: VoiceSessionRunStatus;
+  session: VoiceGamePublicSession | null;
+}) {
+  if (params.runStatus === "listening") {
+    return `À toi de parler · ${params.session?.ownPlayer?.displayName ?? "Joueur"}`;
+  }
+
+  if (params.runStatus === "speaking" && params.activeEvent) {
+    return `${params.activeEvent.speaker.displayName} parle`;
+  }
+
+  if (params.runStatus === "advancing") {
+    return "Le moteur résout la suite";
+  }
+
+  if (params.activeEvent) {
+    return `${eventKindLabel(params.activeEvent.kind)} · ${params.activeEvent.speaker.displayName}`;
+  }
+
+  return "Table prête";
+}
+
+function activeSpeakerBody(params: {
+  activeEvent: VoiceGameEvent | null;
+  runStatus: VoiceSessionRunStatus;
+  session: VoiceGamePublicSession | null;
+  activePhase: PlayerGuidancePhase | undefined;
+}) {
+  if (params.runStatus === "listening") {
+    return params.session?.pendingInput?.prompt ?? "Le micro est ouvert. Donne ta réponse maintenant.";
+  }
+
+  return params.activeEvent?.text ?? params.activePhase?.purpose ?? "Lance la partie pour voir chaque action, réplique et fenêtre micro en direct.";
+}
+
 function entityKindLabel(kind: PlayableEntityKind) {
   if (kind === "collectible") {
     return "Objectif";
@@ -652,13 +806,16 @@ function runtimeCells(runtime: PlayableRuntimeSpec) {
   }));
 }
 
-function loadingProgress(elapsedSeconds: number) {
-  const stepIndex = Math.min(loadingSteps.length - 1, Math.floor(elapsedSeconds / 2));
-  return loadingSteps[stepIndex];
+function loadingProgress(progress: ForgeProgressEvent | null) {
+  if (!progress) {
+    return initialLoadingProgress;
+  }
+
+  return loadingStageCopy[progress.stage] ?? initialLoadingProgress;
 }
 
-function ForgeLoadingScreen({ prompt, elapsedSeconds }: { prompt: string; elapsedSeconds: number }) {
-  const progress = loadingProgress(elapsedSeconds);
+function ForgeLoadingScreen({ prompt, progressEvent }: { prompt: string; progressEvent: ForgeProgressEvent | null }) {
+  const progress = loadingProgress(progressEvent);
 
   return (
     <main className="prepare-overlay" aria-labelledby="build-label">
@@ -707,6 +864,7 @@ function GeneratedGameFullscreen({
   voiceError,
   activeEventSequence,
   onStartVoiceGame,
+  onEndVoiceInput,
   onSpeakPersona,
   speakingPersonaId,
   onGenerateProject,
@@ -726,6 +884,7 @@ function GeneratedGameFullscreen({
   voiceError: ErrorResponse | null;
   activeEventSequence: number | null;
   onStartVoiceGame: () => void;
+  onEndVoiceInput: () => void;
   onSpeakPersona: (persona: PersonaSpec) => void;
   speakingPersonaId: string | null;
   onGenerateProject: () => void;
@@ -740,7 +899,6 @@ function GeneratedGameFullscreen({
   const recentEvents = session?.events.slice(-10).reverse() ?? [];
   const visibleRoles = result.gameSpec.rolesOrActors.slice(0, 6);
   const visiblePersonas = result.package.personas.slice(0, 3);
-  const extractionStep = result.pipeline.find((step) => step.stage === "pioneer_gliner_extraction");
   const boardCells = runtimeSpec ? runtimeCells(runtimeSpec) : [];
   const playerGridStyle = runtimeSpec
     ? { gridColumn: runtimeSpec.player.spawn.x + 1, gridRow: runtimeSpec.player.spawn.y + 1 }
@@ -753,6 +911,9 @@ function GeneratedGameFullscreen({
   const visibleParticipants = session?.participants.slice(0, 8) ?? [];
   const inputWindowIsLive = runStatus === "listening";
   const playerGuidance = playerGuidanceFor({ phase: activePhase, session, runStatus, remainingSeconds, inputWindowIsLive });
+  const speakerTitle = activeSpeakerTitle({ activeEvent, runStatus, session });
+  const speakerBody = activeSpeakerBody({ activeEvent, runStatus, session, activePhase });
+  const ownPlayer = session?.ownPlayer;
 
   return (
     <main className="generated-game-fullscreen" aria-labelledby="generated-game-title">
@@ -776,7 +937,6 @@ function GeneratedGameFullscreen({
           <p>{result.gameSpec.pitch}</p>
           <div className="badges">
             <span className="badge">Provider: {providerModeLabel(mode)}</span>
-            {extractionStep ? <span className="badge">GLiNER {extractionStep.status}</span> : null}
             <span className="badge">{result.gameSpec.family}</span>
             <span className="badge">{result.gameSpec.pack}</span>
             <span className="badge">{result.gameSpec.players.total} joueurs</span>
@@ -788,8 +948,8 @@ function GeneratedGameFullscreen({
           <div className="generated-live-banner">
             <span className={`generated-live-dot generated-live-dot-${runStatus}`} aria-hidden="true" />
             <div>
-              <strong>{activeEvent ? `${eventKindLabel(activeEvent.kind)} · ${activeEvent.speaker.displayName}` : "Table prête"}</strong>
-              <p>{activeEvent?.text ?? activePhase?.purpose ?? "Lance la partie pour voir chaque action, réplique et fenêtre micro en direct."}</p>
+              <strong>{speakerTitle}</strong>
+              <p>{speakerBody}</p>
             </div>
             <em>{session ? `tour ${session.round} · phase ${phaseProgress}` : "runtime visuel"}</em>
           </div>
@@ -849,6 +1009,25 @@ function GeneratedGameFullscreen({
             <div className="generated-player-actions" aria-label="Actions conseillées">
               {playerGuidance.actions.map((action, index) => <span key={`${action}-${index}`}>{action}</span>)}
             </div>
+            {inputWindowIsLive ? (
+              <button type="button" className="voice-end-button" onClick={onEndVoiceInput}>
+                Fin de parole
+              </button>
+            ) : null}
+          </section>
+
+          {ownPlayer ? (
+            <section className="generated-hud-card generated-self-role" aria-label="Ton rôle">
+              <span className="preview-label">Ton rôle</span>
+              <h2>{ownPlayer.roleName}</h2>
+              <p>{ownPlayer.displayName} · objectif: {ownPlayer.objective}</p>
+            </section>
+          ) : null}
+
+          <section className={`generated-hud-card generated-speaker-card generated-speaker-card-${runStatus}`} aria-live="polite">
+            <span className="preview-label">{inputWindowIsLive ? "À toi" : "Orateur actif"}</span>
+            <h2>{speakerTitle}</h2>
+            <p>{speakerBody}</p>
           </section>
 
           <section className="generated-hud-card generated-phase-card">
@@ -868,6 +1047,11 @@ function GeneratedGameFullscreen({
               <div className={`generated-input-window${inputWindowIsLive ? " generated-input-window-live" : ""}`} role="status">
                 <strong>{inputWindowIsLive ? "Micro ouvert" : "Fenêtre vocale à venir"}</strong>
                 <span>{session.pendingInput.prompt}</span>
+                {inputWindowIsLive ? (
+                  <button type="button" className="voice-end-button voice-end-button-compact" onClick={onEndVoiceInput}>
+                    Fin de parole
+                  </button>
+                ) : null}
               </div>
             ) : null}
             <button type="button" onClick={onStartVoiceGame} disabled={runStatus === "starting" || runStatus === "speaking" || runStatus === "listening" || runStatus === "advancing"}>
@@ -956,6 +1140,7 @@ function GeneratedGameFullscreen({
             remainingSeconds={remainingSeconds}
             activeEventSequence={activeEventSequence}
             onStart={onStartVoiceGame}
+            onEndVoiceInput={onEndVoiceInput}
           />
           <GameSupportPreview
             result={result}
@@ -982,7 +1167,8 @@ function PlayableRuntimePreview({
   runStatus,
   remainingSeconds,
   activeEventSequence,
-  onStart
+  onStart,
+  onEndVoiceInput
 }: {
   result: ForgeResult | null;
   runtime: PlayableRuntimeResult | null;
@@ -992,6 +1178,7 @@ function PlayableRuntimePreview({
   remainingSeconds: number;
   activeEventSequence: number | null;
   onStart: () => void;
+  onEndVoiceInput: () => void;
 }) {
   const activeEvent = findActiveVoiceEvent(session, activeEventSequence) ?? latestVoiceEvent(session);
   const activeVisual = visualEventForCurrentStep(session, activeEventSequence);
@@ -1047,6 +1234,11 @@ function PlayableRuntimePreview({
             <p className={`voice-input-prompt${runStatus === "listening" ? " voice-input-prompt-live" : ""}`}>
               {runStatus === "listening" ? session.pendingInput.prompt : `À venir: ${session.pendingInput.prompt}`}
             </p>
+          ) : null}
+          {runStatus === "listening" ? (
+            <button type="button" className="voice-end-button" onClick={onEndVoiceInput}>
+              Fin de parole
+            </button>
           ) : null}
         </aside>
 
@@ -1275,7 +1467,7 @@ export function ForgeClient() {
   const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
   const [voiceError, setVoiceError] = useState<ErrorResponse | null>(null);
   const [speakingPersonaId, setSpeakingPersonaId] = useState<string | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [forgeProgress, setForgeProgress] = useState<ForgeProgressEvent | null>(null);
   const [voiceSession, setVoiceSession] = useState<VoiceGamePublicSession | null>(null);
   const [voiceSessionStatus, setVoiceSessionStatus] = useState<VoiceSessionRunStatus>("idle");
   const [voiceWindowRemaining, setVoiceWindowRemaining] = useState(0);
@@ -1295,20 +1487,6 @@ export function ForgeClient() {
   const voiceSessionBusy = voiceSessionStatus === "starting" || voiceSessionStatus === "speaking" || voiceSessionStatus === "listening" || voiceSessionStatus === "advancing";
 
   useEffect(() => {
-    if (!isLoading) {
-      setElapsedSeconds(0);
-      return;
-    }
-
-    const startedAt = Date.now();
-    const interval = window.setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [isLoading]);
-
-  useEffect(() => {
     return () => {
       voiceSessionRunningRef.current = false;
       if (recorderRef.current?.state === "recording") {
@@ -1325,8 +1503,16 @@ export function ForgeClient() {
     setVoiceMessage(`${label}: transcription Gradium en streaming...`);
 
     try {
+      const gradiumAudioBlob = isGradiumSttCompatibleAudio(audioBlob.type)
+        ? audioBlob
+        : await transcodeAudioBlobToWav(audioBlob);
+
+      if (gradiumAudioBlob !== audioBlob) {
+        setVoiceMessage(`${label}: conversion audio en WAV pour Gradium...`);
+      }
+
       const formData = new FormData();
-      formData.append("audio", audioBlob, `gameforge-prompt.${audioFileExtension(audioBlob.type)}`);
+      formData.append("audio", gradiumAudioBlob, `gameforge-prompt.${audioFileExtension(gradiumAudioBlob.type)}`);
       const apiResponse = await fetch("/api/voice/stt?stream=1", {
         method: "POST",
         body: formData
@@ -1475,11 +1661,15 @@ export function ForgeClient() {
     }
   }
 
-  function stopRecording() {
+  function stopRecording(message = "Enregistrement terminé, envoi à Gradium...") {
     if (recorderRef.current?.state === "recording") {
       recorderRef.current.stop();
-      setVoiceMessage("Enregistrement terminé, envoi à Gradium...");
+      setVoiceMessage(message);
     }
+  }
+
+  function endVoiceInputEarly() {
+    stopRecording("Fin de parole: envoi de ta réponse à Gradium...");
   }
 
   async function playAudioBlob(audioBlob: Blob) {
@@ -1580,7 +1770,7 @@ export function ForgeClient() {
       return null;
     }
 
-    const boundedDurationSec = Math.min(75, Math.max(3, durationSec));
+    const boundedDurationSec = Math.min(30, Math.max(3, durationSec));
     setVoiceError(null);
     setVoiceMessage(`Micro ouvert pour ${boundedDurationSec}s: parle maintenant.`);
     setVoiceWindowRemaining(boundedDurationSec);
@@ -1874,19 +2064,47 @@ export function ForgeClient() {
     setActiveVoiceEventSequence(null);
     processedVoiceEventSequenceRef.current = 0;
     setIsLoading(true);
+    setForgeProgress(null);
     setResponse(null);
     setProjectResponse(null);
 
     try {
-      const apiResponse = await fetch("/api/forge", {
+      const apiResponse = await fetch("/api/forge?stream=1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, provider: "auto" })
       });
-      const json = (await apiResponse.json()) as ApiResponse;
-      setResponse(json);
-      if (json.ok) {
-        void generateProjectForResult(json.result, false);
+
+      if (!apiResponse.ok) {
+        setResponse(await readApiErrorResponse(apiResponse, "network_error"));
+        return;
+      }
+
+      let finalResponse: ApiResponse | null = null;
+      await readForgeStream(apiResponse, (event) => {
+        if (event.type === "progress") {
+          setForgeProgress(event.progress);
+          return;
+        }
+
+        if (event.type === "result") {
+          finalResponse = {
+            ok: true,
+            mode: event.mode,
+            warnings: event.warnings,
+            result: event.result
+          };
+          setResponse(finalResponse);
+          void generateProjectForResult(event.result, false);
+          return;
+        }
+
+        finalResponse = { ok: false, error: event.error, details: event.details };
+        setResponse(finalResponse);
+      });
+
+      if (!finalResponse) {
+        setResponse({ ok: false, error: "network_error" });
       }
     } catch (error) {
       setResponse({ ok: false, error: error instanceof Error ? error.message : "network_error" });
@@ -1957,7 +2175,7 @@ export function ForgeClient() {
   }
 
   if (isLoading) {
-    return <ForgeLoadingScreen prompt={prompt} elapsedSeconds={elapsedSeconds} />;
+    return <ForgeLoadingScreen prompt={prompt} progressEvent={forgeProgress} />;
   }
 
   if (result && providerMode) {
@@ -1975,6 +2193,7 @@ export function ForgeClient() {
         voiceError={voiceError}
         activeEventSequence={activeVoiceEventSequence}
         onStartVoiceGame={startVoiceGameSession}
+        onEndVoiceInput={endVoiceInputEarly}
         onSpeakPersona={speakPersona}
         speakingPersonaId={speakingPersonaId}
         onGenerateProject={generateProject}
@@ -1997,7 +2216,7 @@ export function ForgeClient() {
           <button
             className={`mic-button hero-mic-button${isRecording ? " listening" : ""}`}
             type="button"
-            onClick={isRecording ? stopRecording : startRecording}
+            onClick={isRecording ? () => stopRecording() : startRecording}
             disabled={isStartingPromptRecording || isTranscribing || voiceSessionBusy}
           >
             <span className="mic-icon" aria-hidden="true" />

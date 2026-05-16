@@ -3,6 +3,9 @@ node_modules
 out
 dist
 coverage
+artifacts/
+__pycache__/
+*.py[cod]
 .env
 .env*.local
 *.log

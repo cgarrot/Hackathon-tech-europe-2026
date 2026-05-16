@@ -14,9 +14,13 @@ describe("voice-game-engine", () => {
 
     expect(publicSession.events.every((event) => event.visibility === "public")).toBe(true);
     expect(publicJson).not.toContain("roleId");
-    expect(publicJson).not.toContain("teamOrSide");
     expect(publicJson).not.toContain("ton rôle secret");
     expect(publicJson).not.toContain("ton role secret");
+    expect(publicSession.ownPlayer).toMatchObject({
+      participantId: "human_1",
+      displayName: "Joueur 1",
+      roleName: expect.any(String)
+    });
   });
 
   it("opens voice input windows for werewolf night actions", () => {
@@ -26,6 +30,7 @@ describe("voice-game-engine", () => {
     const publicSession = toPublicVoiceGameSession(session);
 
     expect(publicSession.activePhase.id).toBe("night");
+    expect(publicSession.pendingInput?.durationSec).toBeLessThanOrEqual(30);
     expect(publicSession.pendingInput?.expectedActions).toEqual(["werewolf_kill", "seer_inspect"]);
     expect(publicSession.events.some((event) => event.kind === "input_window" && event.phaseId === "night")).toBe(true);
   });

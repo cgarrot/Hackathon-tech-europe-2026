@@ -38,7 +38,7 @@ export const ArtifactKindSchema = z.enum([
   "validation_report"
 ]);
 
-export const ForgeProviderChoiceSchema = z.enum(["auto", "openai", "ollama", "pioneer"]);
+export const ForgeProviderChoiceSchema = z.enum(["auto", "openai", "ollama"]);
 
 export const PlayerConfigSchema = z
   .object({

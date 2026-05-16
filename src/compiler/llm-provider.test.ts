@@ -110,49 +110,28 @@ describe("resolveLlmProvider", () => {
     });
   });
 
-  it("resolves Pioneer/Kimi from explicit env", () => {
+  it("ignores Pioneer-only configuration in app runtime", () => {
     process.env.LLM_PROVIDER = "pioneer";
     process.env.PIONEER_API_KEY = "test-pioneer-key";
     process.env.PIONEER_MODEL = "moonshotai/Kimi-K2.6";
 
-    expect(resolveLlmProvider()).toMatchObject({
-      type: "configured",
-      config: {
-        provider: "pioneer",
-        apiKey: "test-pioneer-key",
-        baseURL: "https://api.pioneer.ai/v1",
-        model: "moonshotai/Kimi-K2.6",
-        strictJsonSchema: false,
-        maxOutputTokens: 7000
-      }
+    expect(resolveLlmProvider()).toEqual({
+      type: "error",
+      message: "invalid_llm_provider"
     });
   });
 
-  it("resolves Pioneer from a request override even when env defaults to OpenAI", () => {
+  it("rejects Pioneer as a request override", () => {
     process.env.LLM_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "test-openai-key";
     process.env.PIONEER_API_KEY = "test-pioneer-key";
     process.env.PIONEER_BASE_URL = "https://api.pioneer.ai/v1";
     process.env.PIONEER_MODEL = "moonshotai/Kimi-K2.6";
     process.env.PIONEER_MAX_TOKENS = "9000";
 
-    expect(resolveLlmProvider("pioneer")).toMatchObject({
-      type: "configured",
-      config: {
-        provider: "pioneer",
-        apiKey: "test-pioneer-key",
-        baseURL: "https://api.pioneer.ai/v1",
-        model: "moonshotai/Kimi-K2.6",
-        maxOutputTokens: 9000
-      }
-    });
-  });
-
-  it("requires Pioneer API key for explicit Pioneer provider", () => {
-    process.env.LLM_PROVIDER = "pioneer";
-
-    expect(resolveLlmProvider()).toEqual({
+    expect(resolveLlmProvider("pioneer" as never)).toEqual({
       type: "error",
-      message: "missing_pioneer_configuration"
+      message: "invalid_llm_provider"
     });
   });
 });

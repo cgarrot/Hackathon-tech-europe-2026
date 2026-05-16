@@ -2,13 +2,9 @@ import { getGamePackById, packRegistryForPrompt, selectGamePack } from "./game-p
 import { STRICT_ENUM_GUIDE, UNIVERSAL_COMPILER_GUIDE, packGuide } from "./guides";
 import { runStructuredStage } from "./llm-provider";
 import { buildArtifactPackageFromGameSpec } from "./package-builder";
-import { enhanceArtifactPackageWithPioneer } from "./pioneer-artifact-enhancer";
 import { ArtifactPackageSchema, ForgeResultSchema, GameSpecSchema, IntakeBriefSchema, PackSelectionSchema } from "./schemas";
-import { collectPioneerExtractionEvidence, extractionEvidenceToPromptText } from "@/server/pioneer-extraction-client";
 import type { ArtifactPackage, ForgeResult, GameSpec, IntakeBrief, PackSelection } from "./schemas";
 import type { LlmProviderConfig } from "./llm-provider";
-import type { PioneerFineTuneArtifactConfig } from "./pioneer-artifact-enhancer";
-import type { PioneerExtractionEvidence } from "@/server/pioneer-extraction-client";
 
 const ARTIFACT_PACKAGE_SYSTEM_PROMPT = `You are the GameForge artifact generator. Create rules, cards, personas, visual asset prompts, Gradium-ready voice asset prompts, code stubs, acceptance tests, and a validation report.
 
@@ -50,70 +46,49 @@ Output size limits:
 - Close all arrays and the final JSON object.`;
 
 interface CompilerOptions {
-  extractionEvidence?: PioneerExtractionEvidence;
-  skipExtraction?: boolean;
-  pioneerArtifactEnhancementConfig?: LlmProviderConfig;
-  pioneerArtifactFineTuneConfig?: PioneerFineTuneArtifactConfig;
-  skipPioneerArtifactEnhancement?: boolean;
+  onProgress?: (event: CompilerProgressEvent) => void | Promise<void>;
 }
 
-function extractionPipeline(evidence: PioneerExtractionEvidence | undefined) {
-  return evidence
-    ? [{ stage: "pioneer_gliner_extraction", status: `entities:${evidence.entities.length}` }]
-    : [];
+export interface CompilerProgressEvent {
+  stage:
+    | "intake"
+    | "family_router"
+    | "game_spec"
+    | "artifact_package"
+    | "validation";
+  status: "running" | "complete" | "skipped";
+  detail?: string;
 }
 
-function promptWithExtraction(prompt: string, extractionEvidence: PioneerExtractionEvidence | undefined) {
-  return extractionEvidence ? `${prompt} ${extractionEvidenceToPromptText(extractionEvidence)}` : prompt;
-}
-
-async function maybeEnhanceArtifactPackage(params: {
-  prompt: string;
-  intake: IntakeBrief;
-  routing: PackSelection;
-  gameSpec: GameSpec;
-  artifactPackage: ArtifactPackage;
-  options: CompilerOptions;
-}) {
-  if (params.options.skipPioneerArtifactEnhancement) {
-    return { package: params.artifactPackage };
-  }
-
-  return enhanceArtifactPackageWithPioneer({
-    prompt: params.prompt,
-    intake: params.intake,
-    routing: params.routing,
-    gameSpec: params.gameSpec,
-    artifactPackage: params.artifactPackage,
-    config: params.options.pioneerArtifactEnhancementConfig,
-    fineTuneConfig: params.options.pioneerArtifactFineTuneConfig
-  });
+async function emitProgress(options: CompilerOptions, event: CompilerProgressEvent) {
+  await options.onProgress?.(event);
 }
 
 export async function compileWithLlmProvider(prompt: string, config: LlmProviderConfig, options: CompilerOptions = {}): Promise<ForgeResult> {
-  const extractionEvidence = options.extractionEvidence ?? (options.skipExtraction ? undefined : await collectPioneerExtractionEvidence(prompt));
-
   if (config.provider === "ollama") {
-    return compileGuidedOllamaWithLlmProvider(prompt, config, extractionEvidence, options);
+    return compileGuidedOllamaWithLlmProvider(prompt, config, options);
   }
 
+  await emitProgress(options, { stage: "intake", status: "running" });
   const intake = await runStructuredStage({
     config,
     schemaName: "IntakeBrief",
     schema: IntakeBriefSchema,
     system: "You are the universal intake layer of GameForge. Extract intent, family, mechanics, players, required outputs, assumptions, risks, and confidence. Use ONLY these primaryMechanics values: hidden_roles, turn_phases, voting, elimination, team_victory, solo_victory, clue_discovery, dialogue_interrogation, score_rounds, resource_management, survival_pressure, ai_personas, audience_judging, custom_rules. Use ONLY these requiredOutputs values: rules, cards, personas, visuals, voices, code, validation_report. The players object must contain numeric total, humans, and ai fields only. Output strict schema only.",
-    user: extractionEvidence ? JSON.stringify({ prompt, extractionEvidence }) : prompt
+    user: prompt
   });
+  await emitProgress(options, { stage: "intake", status: "complete" });
 
+  await emitProgress(options, { stage: "family_router", status: "running" });
   const generatedRouting = await runStructuredStage({
     config,
     schemaName: "PackSelection",
     schema: PackSelectionSchema,
     system: "You are the GameForge router. Pick exactly one pack ID from the provided registry. Explain routing concisely. Output strict schema only.",
-    user: JSON.stringify({ prompt, intake, extractionEvidence, packRegistry: packRegistryForPrompt() })
+    user: JSON.stringify({ prompt, intake, packRegistry: packRegistryForPrompt() })
   });
 
-  const localPackHint = selectGamePack(promptWithExtraction(prompt, extractionEvidence));
+  const localPackHint = selectGamePack(prompt);
   const routing = PackSelectionSchema.parse({
     ...generatedRouting,
     selectedPack: generatedRouting.selectedPack === "generic" && localPackHint.id !== "generic"
@@ -131,13 +106,15 @@ export async function compileWithLlmProvider(prompt: string, config: LlmProvider
   if (!selectedPack) {
     throw new Error(`unknown_pack:${routing.selectedPack}`);
   }
+  await emitProgress(options, { stage: "family_router", status: "complete", detail: `selected:${routing.selectedPack}` });
 
+  await emitProgress(options, { stage: "game_spec", status: "running" });
   const gameSpec = await runStructuredStage({
     config,
     schemaName: "GameSpec",
     schema: GameSpecSchema,
     system: "You are the GameForge game architect. Create a deterministic universal GameSpec grounded in the intake and selected pack metadata. Use ONLY mechanics from the selected pack metadata. The players object must contain numeric total, humans, and ai fields only. Do not use ais, bots, minPlayers, or maxPlayers. The GameSpec pack and family must exactly match the selected pack. Output strict schema only.",
-    user: JSON.stringify({ prompt, intake, routing, extractionEvidence, selectedPack })
+    user: JSON.stringify({ prompt, intake, routing, selectedPack })
   });
 
   const groundedGameSpec = GameSpecSchema.parse({
@@ -145,43 +122,39 @@ export async function compileWithLlmProvider(prompt: string, config: LlmProvider
     pack: selectedPack.id,
     family: selectedPack.family
   });
+  await emitProgress(options, { stage: "game_spec", status: "complete" });
 
+  await emitProgress(options, { stage: "artifact_package", status: "running" });
   const artifactPackage = await runStructuredStage({
     config,
     schemaName: "ArtifactPackage",
     schema: ArtifactPackageSchema,
     system: ARTIFACT_PACKAGE_SYSTEM_PROMPT,
-    user: JSON.stringify({ prompt, intake, routing, extractionEvidence, selectedPack, gameSpec: groundedGameSpec })
+    user: JSON.stringify({ prompt, intake, routing, selectedPack, gameSpec: groundedGameSpec })
   });
-  const artifactEnhancement = await maybeEnhanceArtifactPackage({
-    prompt,
-    intake,
-    routing,
-    gameSpec: groundedGameSpec,
-    artifactPackage,
-    options
-  });
+  await emitProgress(options, { stage: "artifact_package", status: "complete" });
+  await emitProgress(options, { stage: "validation", status: "running" });
+  await emitProgress(options, { stage: "validation", status: "complete", detail: artifactPackage.validationReport.status });
 
   return ForgeResultSchema.parse({
     intake: intake satisfies IntakeBrief,
     routing: routing satisfies PackSelection,
     gameSpec: groundedGameSpec satisfies GameSpec,
-    package: artifactEnhancement.package satisfies ArtifactPackage,
+    package: artifactPackage satisfies ArtifactPackage,
     pipeline: [
-      ...extractionPipeline(extractionEvidence),
       { stage: "intake", status: "complete" },
       { stage: "family_router", status: `selected:${routing.selectedPack}` },
       { stage: "game_spec", status: "complete" },
       { stage: "artifact_package", status: "complete" },
-      ...(artifactEnhancement.pipelineStatus ? [{ stage: "pioneer_artifact_enhancement", status: artifactEnhancement.pipelineStatus }] : []),
-      { stage: "validation", status: artifactEnhancement.package.validationReport.status }
+      { stage: "validation", status: artifactPackage.validationReport.status }
     ]
   });
 }
 
-async function compileGuidedOllamaWithLlmProvider(prompt: string, config: LlmProviderConfig, extractionEvidence: PioneerExtractionEvidence | undefined, options: CompilerOptions): Promise<ForgeResult> {
-  const selectedPack = selectGamePack(promptWithExtraction(prompt, extractionEvidence));
+async function compileGuidedOllamaWithLlmProvider(prompt: string, config: LlmProviderConfig, options: CompilerOptions): Promise<ForgeResult> {
+  const selectedPack = selectGamePack(prompt);
 
+  await emitProgress(options, { stage: "intake", status: "running" });
   const intake = await runStructuredStage({
     config,
     schemaName: "IntakeBrief",
@@ -190,12 +163,14 @@ async function compileGuidedOllamaWithLlmProvider(prompt: string, config: LlmPro
       `${UNIVERSAL_COMPILER_GUIDE}\n${STRICT_ENUM_GUIDE}\nYou are stage 1: IntakeBrief. Extract the user intent into the exact IntakeBrief schema. Keep arrays short.`,
     user: JSON.stringify({
       prompt,
-      extractionEvidence,
       selectedPackHint: { id: selectedPack.id, family: selectedPack.family, mechanics: selectedPack.mechanics },
       targetShape: "IntakeBrief"
     })
   });
+  await emitProgress(options, { stage: "intake", status: "complete" });
+  await emitProgress(options, { stage: "family_router", status: "complete", detail: `selected:${selectedPack.id}` });
 
+  await emitProgress(options, { stage: "game_spec", status: "running" });
   const generatedGameSpec = await runStructuredStage({
     config,
     schemaName: "GameSpec",
@@ -205,15 +180,17 @@ async function compileGuidedOllamaWithLlmProvider(prompt: string, config: LlmPro
     user: JSON.stringify({
       prompt,
       intake,
-      extractionEvidence,
       selectedPack,
       targetShape: "GameSpec"
     })
   });
+  await emitProgress(options, { stage: "game_spec", status: "complete" });
 
+  await emitProgress(options, { stage: "artifact_package", status: "running" });
   const groundedGameSpec = buildFastGameSpec(prompt, selectedPack, generatedGameSpec);
 
   const artifactPackage = buildArtifactPackageFromGameSpec(groundedGameSpec, selectedPack);
+  await emitProgress(options, { stage: "artifact_package", status: "complete", detail: "guide_based" });
   const groundedIntake = IntakeBriefSchema.parse({
     ...intake,
     gameFamily: selectedPack.family,
@@ -230,28 +207,20 @@ async function compileGuidedOllamaWithLlmProvider(prompt: string, config: LlmPro
     fallbackPack: "generic",
     confidence: 0.9
   });
-  const artifactEnhancement = await maybeEnhanceArtifactPackage({
-    prompt,
-    intake: groundedIntake,
-    routing,
-    gameSpec: groundedGameSpec,
-    artifactPackage,
-    options
-  });
+  await emitProgress(options, { stage: "validation", status: "running" });
+  await emitProgress(options, { stage: "validation", status: "complete", detail: artifactPackage.validationReport.status });
 
   return ForgeResultSchema.parse({
     intake: groundedIntake,
     routing,
     gameSpec: groundedGameSpec,
-    package: artifactEnhancement.package,
+    package: artifactPackage,
     pipeline: [
-      ...extractionPipeline(extractionEvidence),
       { stage: "prompt_1_intake_brief", status: "complete" },
       { stage: "local_pack_router", status: `selected:${selectedPack.id}` },
       { stage: "prompt_2_guided_game_spec", status: "complete" },
       { stage: "guide_based_artifact_generation", status: "complete" },
-      ...(artifactEnhancement.pipelineStatus ? [{ stage: "pioneer_artifact_enhancement", status: artifactEnhancement.pipelineStatus }] : []),
-      { stage: "validation", status: artifactEnhancement.package.validationReport.status }
+      { stage: "validation", status: artifactPackage.validationReport.status }
     ]
   });
 }

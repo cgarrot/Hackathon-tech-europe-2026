@@ -4,7 +4,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { z } from "zod";
 import { normalizeStageOutput } from "./schema-normalizer";
 
-export type RealLlmProvider = "openai" | "ollama" | "pioneer";
+export type RealLlmProvider = "openai" | "ollama";
 export type CompilerMode = RealLlmProvider;
 
 export interface LlmProviderConfig {
@@ -18,13 +18,11 @@ export interface LlmProviderConfig {
 }
 
 export type ProviderResolution =
-  | { type: "configured"; config: LlmProviderConfig }
+  | { type: "configured"; config: LlmProviderConfig & { provider: RealLlmProvider } }
   | { type: "error"; message: string };
 
-const ProviderSchema = z.enum(["openai", "ollama", "pioneer"]);
+const ProviderSchema = z.enum(["openai", "ollama"]);
 const MAX_STAGE_ATTEMPTS = 2;
-const DEFAULT_PIONEER_BASE_URL = "https://api.pioneer.ai/v1";
-const DEFAULT_PIONEER_MODEL = "moonshotai/Kimi-K2.6";
 
 function withHardTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -67,17 +65,6 @@ function readTimeoutMs(): number {
   }
 
   return timeout;
-}
-
-function readPioneerMaxOutputTokens(): number {
-  const rawMaxTokens = process.env.PIONEER_MAX_TOKENS;
-  const maxTokens = rawMaxTokens ? Number(rawMaxTokens) : 7000;
-
-  if (!Number.isFinite(maxTokens) || maxTokens <= 0) {
-    return 7000;
-  }
-
-  return Math.floor(maxTokens);
 }
 
 export function resolveLlmProvider(preferredProvider?: RealLlmProvider): ProviderResolution {
@@ -135,29 +122,6 @@ export function resolveLlmProvider(preferredProvider?: RealLlmProvider): Provide
     };
   }
 
-  if (provider === "pioneer" || (!provider && process.env.PIONEER_API_KEY)) {
-    const apiKey = process.env.PIONEER_API_KEY;
-    const baseURL = process.env.PIONEER_BASE_URL ?? DEFAULT_PIONEER_BASE_URL;
-    const model = process.env.PIONEER_MODEL ?? DEFAULT_PIONEER_MODEL;
-
-    if (!apiKey) {
-      return { type: "error", message: "missing_pioneer_configuration" };
-    }
-
-    return {
-      type: "configured",
-      config: {
-        provider: "pioneer",
-        model,
-        apiKey,
-        baseURL,
-        timeoutMs,
-        strictJsonSchema: false,
-        maxOutputTokens: readPioneerMaxOutputTokens()
-      }
-    };
-  }
-
   return {
     type: "error",
     message: "missing_llm_provider_configuration"
@@ -168,7 +132,7 @@ function createClient(config: LlmProviderConfig): OpenAI {
   return new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL,
-    defaultHeaders: config.provider === "pioneer" ? { "X-API-Key": config.apiKey } : undefined
+    defaultHeaders: undefined
   });
 }
 

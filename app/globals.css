@@ -1532,6 +1532,56 @@ pre {
   line-height: 1.25;
 }
 
+.voice-end-button {
+  justify-self: start;
+  border-color: rgba(255, 139, 139, 0.5);
+  color: #ffe9e9;
+  background: rgba(255, 139, 139, 0.16);
+}
+
+.voice-end-button:hover {
+  border-color: rgba(255, 139, 139, 0.74);
+  background: rgba(255, 139, 139, 0.24);
+}
+
+.voice-end-button-compact {
+  margin-top: var(--space-2);
+}
+
+.generated-self-role,
+.generated-speaker-card {
+  border-color: rgba(154, 230, 180, 0.24);
+  background:
+    radial-gradient(circle at 100% 0, rgba(154, 230, 180, 0.14), transparent 8rem),
+    rgba(255, 255, 255, 0.045);
+}
+
+.generated-self-role h2,
+.generated-speaker-card h2,
+.generated-self-role p,
+.generated-speaker-card p {
+  margin: 0;
+}
+
+.generated-self-role h2,
+.generated-speaker-card h2 {
+  font-size: clamp(1.35rem, 2.2vw, 2rem);
+  line-height: 1;
+}
+
+.generated-self-role p,
+.generated-speaker-card p {
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+
+.generated-speaker-card-listening {
+  border-color: rgba(255, 139, 139, 0.42);
+  background:
+    radial-gradient(circle at 100% 0, rgba(255, 139, 139, 0.18), transparent 8rem),
+    rgba(255, 139, 139, 0.08);
+}
+
 .generated-phase-card h2 {
   font-size: clamp(1.6rem, 3vw, 2.6rem);
 }

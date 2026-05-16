@@ -16,7 +16,7 @@ describe("Forge schemas", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts request-level OpenAI, Ollama, and Pioneer provider choices", () => {
+  it("accepts request-level OpenAI and Ollama provider choices", () => {
     expect(ForgeRequestSchema.parse({
       prompt: "Je veux générer un jeu avec OpenAI.",
       provider: "openai"
@@ -27,10 +27,10 @@ describe("Forge schemas", () => {
       provider: "ollama"
     }).provider).toBe("ollama");
 
-    expect(ForgeRequestSchema.parse({
+    expect(ForgeRequestSchema.safeParse({
       prompt: "Je veux générer un jeu avec Kimi via Pioneer.",
       provider: "pioneer"
-    }).provider).toBe("pioneer");
+    }).success).toBe(false);
   });
 
   it("defaults forge requests to auto provider resolution", () => {

@@ -4,6 +4,7 @@ const MAX_SESSION_PHASES = 16;
 const MAX_PHASE_ACTIONS = 12;
 const MAX_SESSION_EVENTS = 240;
 const MAX_SESSION_ROUNDS = 12;
+const MAX_VOICE_INPUT_DURATION_SEC = 30;
 
 export type VoiceGameEventKind =
   | "session_started"
@@ -24,6 +25,13 @@ export interface VoiceGameParticipant {
   kind: "human" | "ai";
   personaId?: string;
   alive: boolean;
+}
+
+export interface VoiceGamePlayerView {
+  participantId: string;
+  displayName: string;
+  roleName: string;
+  objective: string;
 }
 
 interface VoiceGamePrivateParticipant extends VoiceGameParticipant {
@@ -99,6 +107,7 @@ export interface VoiceGamePublicSession {
   round: number;
   activePhase: VoiceGamePhase;
   participants: VoiceGameParticipant[];
+  ownPlayer?: VoiceGamePlayerView;
   pendingInput?: VoiceGameInputWindow;
   events: VoiceGameEvent[];
 }
@@ -328,7 +337,7 @@ function addPhaseEvents(session: VoiceGameSession) {
     const inputWindow = {
       id: `${session.sessionId}:${phase.id}:input:${session.round}`,
       phaseId: phase.id,
-      durationSec: phase.durationSec,
+      durationSec: Math.min(MAX_VOICE_INPUT_DURATION_SEC, phase.durationSec),
       prompt: `Parlez maintenant pour ${phase.name}. Actions attendues: ${phase.allowedActions.join(", ") || "réaction libre"}.`,
       expectedActions: phase.allowedActions
     };
@@ -487,6 +496,7 @@ export function toPublicVoiceGameSession(session: VoiceGameSession): VoiceGamePu
     const publicEvent = toPublicVoiceGameEvent(event);
     return publicEvent ? [publicEvent] : [];
   });
+  const ownHumanPlayer = session.participants.find((participant) => participant.kind === "human");
 
   return {
     sessionId: session.sessionId,
@@ -497,6 +507,12 @@ export function toPublicVoiceGameSession(session: VoiceGameSession): VoiceGamePu
     round: session.round,
     activePhase: currentPhase(session),
     participants: session.participants.map(({ id, displayName, kind, personaId, alive }) => ({ id, displayName, kind, personaId, alive })),
+    ownPlayer: ownHumanPlayer ? {
+      participantId: ownHumanPlayer.id,
+      displayName: ownHumanPlayer.displayName,
+      roleName: ownHumanPlayer.roleName,
+      objective: ownHumanPlayer.teamOrSide
+    } : undefined,
     pendingInput: session.pendingInput,
     events: publicEvents
   };
