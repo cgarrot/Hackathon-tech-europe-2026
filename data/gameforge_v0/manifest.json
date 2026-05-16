@@ -1,0 +1,677 @@
+{
+  "version": "gameforge_v0_qwen27b",
+  "model_target": "Qwen3.6 27B",
+  "seed": 42,
+  "source_files": [
+    "/Users/cgarrot/zob/hackthon-paris-2026-v1/data/gameforge_v0/raw/kimi_create_modify.jsonl",
+    "/Users/cgarrot/zob/hackthon-paris-2026-v1/data/gameforge_v0/raw/deepseek_actions_tools.jsonl",
+    "/Users/cgarrot/zob/hackthon-paris-2026-v1/data/gameforge_v0/raw/glm_guardrails_misc.jsonl"
+  ],
+  "totals": {
+    "all_normalized": 230,
+    "train": 193,
+    "eval": 37
+  },
+  "intent_distribution": {
+    "train": {
+      "clarification_needed": 18,
+      "create_game": 42,
+      "guardrail": 27,
+      "modify_game": 26,
+      "off_topic": 13,
+      "player_action": 42,
+      "tool_request": 25
+    },
+    "eval": {
+      "clarification_needed": 2,
+      "create_game": 8,
+      "guardrail": 8,
+      "modify_game": 4,
+      "off_topic": 2,
+      "player_action": 8,
+      "tool_request": 5
+    }
+  },
+  "route_distribution": {
+    "train": {
+      "clarification": 31,
+      "fal_visuals": 7,
+      "game_compiler": 68,
+      "gradium_voice": 9,
+      "openai_rules": 9,
+      "runtime_engine": 42,
+      "safety_filter": 27
+    },
+    "eval": {
+      "clarification": 4,
+      "fal_visuals": 3,
+      "game_compiler": 12,
+      "gradium_voice": 1,
+      "openai_rules": 1,
+      "runtime_engine": 8,
+      "safety_filter": 8
+    }
+  },
+  "safety_flag_distribution": {
+    "train": {
+      "copyright_infringement": 3,
+      "graphic_violence": 4,
+      "hate_discrimination": 4,
+      "illegal_behavior": 3,
+      "kids_safety": 4,
+      "self_harm": 3,
+      "sexual_content": 3,
+      "terrorism": 3
+    },
+    "eval": {
+      "copyright_infringement": 1,
+      "graphic_violence": 1,
+      "hate_discrimination": 1,
+      "illegal_behavior": 1,
+      "kids_safety": 1,
+      "self_harm": 1,
+      "sexual_content": 1,
+      "terrorism": 1
+    }
+  },
+  "normalization_changes": [
+    [
+      "actor:je->current_player",
+      50
+    ],
+    [
+      "action_type:utiliser_ressource->use_resource",
+      11
+    ],
+    [
+      "action_type:attaquer->attack",
+      8
+    ],
+    [
+      "action_type:parler->speak",
+      8
+    ],
+    [
+      "action_type:inspecter->inspect",
+      8
+    ],
+    [
+      "asset_type:voix_personnage->character_voice",
+      8
+    ],
+    [
+      "asset_type:mécanique->mechanic",
+      8
+    ],
+    [
+      "genre:horreur->horror",
+      7
+    ],
+    [
+      "action_type:déplacer->move",
+      5
+    ],
+    [
+      "genre:aventure->adventure",
+      5
+    ],
+    [
+      "genre:enquête->investigation",
+      5
+    ],
+    [
+      "asset_type:image_lieu->location_image",
+      5
+    ],
+    [
+      "mechanics:vote->voting",
+      4
+    ],
+    [
+      "mechanics:déplacement->movement",
+      4
+    ],
+    [
+      "genre:policier->detective",
+      4
+    ],
+    [
+      "safety_flag:copyright_violation->copyright_infringement",
+      4
+    ],
+    [
+      "action_type:voter->vote",
+      3
+    ],
+    [
+      "setting:taverne->tavern",
+      3
+    ],
+    [
+      "mechanics:inventaire->inventory",
+      3
+    ],
+    [
+      "action_type:échanger->trade",
+      3
+    ],
+    [
+      "mechanics:magie->magic",
+      3
+    ],
+    [
+      "mechanics:furtivité->stealth",
+      3
+    ],
+    [
+      "asset_type:image_personnage->character_image",
+      3
+    ],
+    [
+      "setting:laboratoire->laboratory",
+      3
+    ],
+    [
+      "roles:chef->leader",
+      2
+    ],
+    [
+      "roles:voleur->thief",
+      2
+    ],
+    [
+      "action_type:accuser->accuse",
+      2
+    ],
+    [
+      "action_type:utiliser_pouvoir->use_power",
+      2
+    ],
+    [
+      "mechanics:stratégie->strategy",
+      2
+    ],
+    [
+      "mechanics:piège->trap",
+      2
+    ],
+    [
+      "mechanics:fouille->search",
+      2
+    ],
+    [
+      "setting:arène->arena",
+      2
+    ],
+    [
+      "mechanics:équipement->equipment",
+      2
+    ],
+    [
+      "mechanics:préparation->preparation",
+      2
+    ],
+    [
+      "mechanics:survie->survival",
+      2
+    ],
+    [
+      "setting:colline->hill",
+      2
+    ],
+    [
+      "mechanics:récupération->recovery",
+      2
+    ],
+    [
+      "mechanics:environnement->environment",
+      2
+    ],
+    [
+      "setting:château->castle",
+      2
+    ],
+    [
+      "roles:alchimiste->alchemist",
+      2
+    ],
+    [
+      "genre:médiéval->medieval",
+      2
+    ],
+    [
+      "asset_type:image_objet->object_image",
+      2
+    ],
+    [
+      "genre:science-fiction->science_fiction",
+      2
+    ],
+    [
+      "roles:narrateur->narrator",
+      2
+    ],
+    [
+      "asset_type:voix_narrateur->narrator_voice",
+      2
+    ],
+    [
+      "mechanics:nuit->night_phase",
+      2
+    ],
+    [
+      "asset_type:règle->rule",
+      2
+    ],
+    [
+      "roles:loup-garou->werewolf",
+      1
+    ],
+    [
+      "roles:villageois->villager",
+      1
+    ],
+    [
+      "mechanics:élimination->elimination",
+      1
+    ],
+    [
+      "roles:voyante->seer",
+      1
+    ],
+    [
+      "mechanics:pouvoir->special_power",
+      1
+    ],
+    [
+      "mechanics:échange->exchange",
+      1
+    ],
+    [
+      "mechanics:quête->quest",
+      1
+    ],
+    [
+      "setting:grotte->cave",
+      1
+    ],
+    [
+      "mechanics:ressource->resource_use",
+      1
+    ],
+    [
+      "roles:sorcière->witch",
+      1
+    ],
+    [
+      "mechanics:déduction->deduction",
+      1
+    ],
+    [
+      "roles:occultiste->occultist",
+      1
+    ],
+    [
+      "mechanics:savoir->knowledge",
+      1
+    ],
+    [
+      "setting:cave->cellar",
+      1
+    ],
+    [
+      "setting:bateau->ship",
+      1
+    ],
+    [
+      "mechanics:crochetage->lockpicking",
+      1
+    ],
+    [
+      "mechanics:interrogatoire->interrogation",
+      1
+    ],
+    [
+      "setting:donjon->dungeon",
+      1
+    ],
+    [
+      "mechanics:désamorçage->defusal",
+      1
+    ],
+    [
+      "mechanics:immobilisation->immobilization",
+      1
+    ],
+    [
+      "target:arène->arena",
+      1
+    ],
+    [
+      "mechanics:invisibilité->invisibility",
+      1
+    ],
+    [
+      "setting:couloir->corridor",
+      1
+    ],
+    [
+      "mechanics:commerce->trading",
+      1
+    ],
+    [
+      "mechanics:empoisonnement->poisoning",
+      1
+    ],
+    [
+      "genre:mystère->mystery",
+      1
+    ],
+    [
+      "setting:manoir->manor",
+      1
+    ],
+    [
+      "mechanics:lecture->reading",
+      1
+    ],
+    [
+      "mechanics:indice->clue",
+      1
+    ],
+    [
+      "setting:route->road",
+      1
+    ],
+    [
+      "mechanics:embuscade->ambush",
+      1
+    ],
+    [
+      "mechanics:partage->sharing",
+      1
+    ],
+    [
+      "setting:grange->barn",
+      1
+    ],
+    [
+      "mechanics:piste->tracking",
+      1
+    ],
+    [
+      "setting:bureau->office",
+      1
+    ],
+    [
+      "mechanics:effraction->break_in",
+      1
+    ],
+    [
+      "target:fenêtre->window",
+      1
+    ],
+    [
+      "setting:salle_de_bal->ballroom",
+      1
+    ],
+    [
+      "mechanics:écoute->eavesdropping",
+      1
+    ],
+    [
+      "setting:fontaine->fountain",
+      1
+    ],
+    [
+      "mechanics:rituel->ritual",
+      1
+    ],
+    [
+      "mechanics:chance->luck",
+      1
+    ],
+    [
+      "mechanics:explosif->explosives",
+      1
+    ],
+    [
+      "target_fix:magic_ring",
+      1
+    ],
+    [
+      "setting:balcon->balcony",
+      1
+    ],
+    [
+      "mechanics:escalade->climbing",
+      1
+    ],
+    [
+      "setting:labyrinthe->labyrinth",
+      1
+    ],
+    [
+      "mechanics:cartographie->mapping",
+      1
+    ],
+    [
+      "mechanics:coopération->cooperation",
+      1
+    ],
+    [
+      "setting:cellule->cell",
+      1
+    ],
+    [
+      "genre:espionnage->espionage",
+      1
+    ],
+    [
+      "mechanics:découverte->discovery",
+      1
+    ],
+    [
+      "mechanics:déguisement->disguise",
+      1
+    ],
+    [
+      "target_fix:guard_disguise",
+      1
+    ],
+    [
+      "roles:shérif->sheriff",
+      1
+    ],
+    [
+      "mechanics:autorité->authority",
+      1
+    ],
+    [
+      "genre:militaire->military",
+      1
+    ],
+    [
+      "mechanics:fumigène->smoke_screen",
+      1
+    ],
+    [
+      "mechanics:retraite->retreat",
+      1
+    ],
+    [
+      "target_fix:smoke_grenade",
+      1
+    ],
+    [
+      "setting:ravin->ravine",
+      1
+    ],
+    [
+      "mechanics:acrobatie->acrobatics",
+      1
+    ],
+    [
+      "setting:clocher->bell_tower",
+      1
+    ],
+    [
+      "target:équipe->team",
+      1
+    ],
+    [
+      "setting:ruine->ruins",
+      1
+    ],
+    [
+      "roles:seigneur->lord",
+      1
+    ],
+    [
+      "genre:guerre->war",
+      1
+    ],
+    [
+      "setting:forteresse->fortress",
+      1
+    ],
+    [
+      "mechanics:siège->siege",
+      1
+    ],
+    [
+      "setting:marché->market",
+      1
+    ],
+    [
+      "setting:tombeau->tomb",
+      1
+    ],
+    [
+      "roles:gardien->guardian",
+      1
+    ],
+    [
+      "setting:hôtel->hotel",
+      1
+    ],
+    [
+      "roles:marin->sailor",
+      1
+    ],
+    [
+      "roles:loup_de_mer->sea_wolf",
+      1
+    ],
+    [
+      "roles:fantôme->ghost",
+      1
+    ],
+    [
+      "roles:enfant->child",
+      1
+    ],
+    [
+      "roles:roi->king",
+      1
+    ],
+    [
+      "mechanics:couronnement->coronation",
+      1
+    ],
+    [
+      "setting:clairière->clearing",
+      1
+    ],
+    [
+      "setting:forêt->forest",
+      1
+    ],
+    [
+      "roles:dryade->dryad",
+      1
+    ],
+    [
+      "roles:gang->gang_member",
+      1
+    ],
+    [
+      "genre:conte->fairy_tale",
+      1
+    ],
+    [
+      "roles:témoin->witness",
+      1
+    ],
+    [
+      "setting:montagne->mountain",
+      1
+    ],
+    [
+      "mechanics:traque->pursuit",
+      1
+    ],
+    [
+      "mechanics:héritage->inheritance",
+      1
+    ],
+    [
+      "mechanics:mort->death",
+      1
+    ],
+    [
+      "genre:stratégie->strategy",
+      1
+    ],
+    [
+      "genre:politique->political",
+      1
+    ],
+    [
+      "roles:diplomate->diplomat",
+      1
+    ],
+    [
+      "mechanics:diplomatie->diplomacy",
+      1
+    ],
+    [
+      "mechanics:litige->dispute",
+      1
+    ],
+    [
+      "mechanics:arbitrage->arbitration",
+      1
+    ],
+    [
+      "mechanics:faim->hunger",
+      1
+    ],
+    [
+      "mechanics:soif->thirst",
+      1
+    ],
+    [
+      "mechanics:aléatoire->randomness",
+      1
+    ],
+    [
+      "mechanics:événements->events",
+      1
+    ],
+    [
+      "mechanics:xp->experience_points",
+      1
+    ],
+    [
+      "mechanics:quêtes->quest",
+      1
+    ]
+  ],
+  "files": {
+    "all_normalized": "/Users/cgarrot/zob/hackthon-paris-2026-v1/data/gameforge_v0/all_normalized.jsonl",
+    "train": "/Users/cgarrot/zob/hackthon-paris-2026-v1/data/gameforge_v0/train.jsonl",
+    "eval": "/Users/cgarrot/zob/hackthon-paris-2026-v1/data/gameforge_v0/eval.jsonl",
+    "normalization_map": "/Users/cgarrot/zob/hackthon-paris-2026-v1/data/gameforge_v0/normalization_map.json"
+  }
+}
